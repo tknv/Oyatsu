@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@android:color/transparent"
+    android:layout_marginTop="0dp"
+    android:layout_marginBottom="0dp"
+    android:padding="0dp">
+
+    <!-- Japanese Year and Month -->
+    <TextView
+        android:id="@+id/text_japanese_year_month"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:textColor="@android:color/white"
+        android:textSize="15sp"
+        android:letterSpacing="0.2"
+        android:gravity="center"
+        android:text="令和五年 睦月" />
+
+    <!-- Gregorian Date -->
+    <TextView
+        android:id="@+id/text_gregorian_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:textColor="@android:color/white"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:letterSpacing="0"
+        android:gravity="center"
+        android:text="2025年05月01日" />
+
+    <!-- Solar Term and Kanji Cycle -->
+    <TextView
+        android:id="@+id/text_jikoku_solar_term_sixty_cycle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:letterSpacing="0.2"
+        android:gravity="center"
+        android:text="未三つ 立夏 甲子" />
+
+    <TextView
+        android:id="@+id/text_sun_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:textColor="@android:color/white"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:text="日出05:06-日入19:31" />
+
+<!--    <TextView-->
+<!--        android:id="@+id/text_sixty_kanji_cycle"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:textColor="@android:color/white"-->
+<!--        android:textSize="16sp"-->
+<!--        android:gravity="center"-->
+<!--        android:text="甲子" />-->
+
+</LinearLayout>

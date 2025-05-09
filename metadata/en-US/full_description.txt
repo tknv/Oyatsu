@@ -1,0 +1,7 @@
+Display and Japanese clock time (seasonal time) calculated by GPS location
+* 和暦 - Japanese calendar
+* 和風月名 - Japanese-style month names
+* グレゴリー日付 - Gregorian date
+* 和時計時刻(不定時法) - Japanese clock time (seasonal time)
+* 二十四節気 - 24 solar terms
+* 干支 - Chinese zodiac signs
