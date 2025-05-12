@@ -1,4 +1,4 @@
-Display and Japanese clock time (seasonal time) calculated by GPS location
+Display and Japanese clock time (seasonal time) calculated by location
 * 和暦 - Japanese calendar
 * 和風月名 - Japanese-style month names
 * グレゴリー日付 - Gregorian date

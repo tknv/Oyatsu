@@ -1,6 +1,5 @@
 package lab.rreedd.oyatsu
 
-import android.Manifest
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -9,41 +8,18 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.os.PowerManager
-import android.os.SystemClock
-import android.net.Uri
-import android.provider.Settings
 import android.util.Log
 import android.widget.RemoteViews
-import android.widget.Toast
-import androidx.core.content.ContextCompat
-import androidx.core.content.edit
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 private const val TAG = "OyatsuWidget"
 private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
-private const val PREF_SUNRISE_TIME_PREFIX =
-    "sunrise_time_" // 例: sunrise_time_123_millis, sunrise_time_123_date
-private const val PREF_SUNSET_TIME_PREFIX =
-    "sunset_time_" // 例: sunset_time_123_millis, sunset_time_123_date
 private const val PREF_LATITUDE_PREFIX = "latitude_"       // 例: latitude_123
 private const val PREF_LONGITUDE_PREFIX = "longitude_"      // 例: longitude_123
-private const val ACTION_ALARM_UPDATE =
-    "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE" // AlarmManagerからのカスタムアクション
-
-// --- 定数 ---
+private const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE" 
 private const val DEFAULT_LATITUDE = 35.6895 // デフォルト緯度（東京駅） - 位置情報が取れない場合に使用
 private const val DEFAULT_LONGITUDE = 139.6917 // デフォルト経度（東京駅）
 
@@ -52,9 +28,6 @@ class Oyatsu : AppWidgetProvider() {
     private val dayTimeLabels = arrayOf("卯", "辰", "巳", "午", "未", "申")
     private val nightTimeLabels = arrayOf("酉", "戌", "亥", "子", "丑", "寅")
     private val hourNumber = arrayOf("一つ", "二つ", "三つ", "四つ")
-
-    // FusedLocationProviderClient のインスタンス (遅延初期化)
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     /**
      * ウィジェットが更新されるタイミングで呼び出される。
@@ -70,37 +43,36 @@ class Oyatsu : AppWidgetProvider() {
         // 通常はAlarmManagerからのカスタムアクション(ACTION_ALARM_UPDATE)で位置情報取得と更新を行うのが良い。
         // ここでは、念のため位置情報がない場合に取得を試みるロジックは残しておく。
         appWidgetIds.forEach { appWidgetId ->
-            // 既存の日の出情報を使ってまずは表示を更新
-            updateAppWidgetInternal(context, appWidgetManager, appWidgetId, false) // 通常は日の出再計算不要
-            // 次の更新をスケジュールする (これもACTION_ALARM_UPDATEで処理するため、ここでは単にスケジュール設定)
-            SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+            // 現在の緯度経度を更新
+            val views = RemoteViews(context.packageName, R.layout.widget_oyatsu)
+            SunriseWidgetAlarmUtils.updateWidgetCoordinates(context, appWidgetId, views)
+            proceedWithWidgetUpdate(
+                context,
+                appWidgetId,
+                forceSunriseRecalc = true
+            )
+            // // 日の出情報を使ってまずは表示を更新
+            // updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true)
+            // // 次の更新をスケジュールする (これもACTION_ALARM_UPDATEで処理するため、ここでは単にスケジュール設定)
+            // SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
         }
     }
 
-    /**
-     * 最初のウィジェットインスタンスが作成されたときに呼び出される。
-     */
     override fun onEnabled(context: Context) {
         Log.d(TAG, "onEnabled called")
-        // FusedLocationProviderClient を初期化
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-        // アプリ起動時やウィジェット初回設置時にパーミッション確認・要求フローを入れるのが理想
-        // ここでは、既存のウィジェットIDに対して強制的に位置情報取得と更新を試みる
+        // When the first widget is added, you might want to prompt for location
+        // or ensure default is set up.
+        // For now, existing widgets will update with stored/default location.
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        // この AppWidgetProvider に関連付けられているすべてのウィジェットIDを取得
         val thisAppWidget = ComponentName(context.packageName, javaClass.name)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
-
-        // 初回設定として、すべてのアクティブなウィジェットに対して位置情報取得を試みる
         appWidgetIds.forEach { appWidgetId ->
-            Log.d(TAG, "Initial setup for widget ID: $appWidgetId")
-            // 初回なので、位置情報取得に成功したら日の出時刻を強制的に再計算させる
-            requestLocationAndUpdate(context, appWidgetId, true)
+            // Ensure initial update and schedule
+            proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc = true)
+            //     updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // forceRecalc for initial setup
+            //     SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+            // }
         }
-        // 注: onEnabled での位置情報リクエストは、アプリがバックグラウンドにいる場合に位置情報アクセス許可が
-        // まだ得られていない（「アプリの使用中のみ」など）と、意図した通りに位置情報が取得できないことがあります。
-        // ユーザーに初回設置時に位置情報許可ダイアログを表示させるフローを入れるのがよりユーザーフレンドリーです。
-        // （本コードではユーザーが手動で設定することを前提としているため、その部分は省略しています）
     }
 
     /**
@@ -121,87 +93,74 @@ class Oyatsu : AppWidgetProvider() {
             // 削除されたウィジェットに関連付けられたアラームをキャンセル
             cancelAlarm(context, appWidgetId)
             // 関連する SharedPreferences データを削除
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
-                remove(PREF_SUNRISE_TIME_PREFIX + appWidgetId + "_millis")
-                remove(PREF_SUNRISE_TIME_PREFIX + appWidgetId + "_date")
-                remove(PREF_SUNSET_TIME_PREFIX + appWidgetId + "_millis")  // 日の入り時刻も削除
-                remove(PREF_SUNSET_TIME_PREFIX + appWidgetId + "_date")    // 日の入り日付も削除
-                remove(PREF_LATITUDE_PREFIX + appWidgetId)
-                remove(PREF_LONGITUDE_PREFIX + appWidgetId)
-            }
-            Log.i(TAG, "Cleaned up data for deleted widget ID: $appWidgetId")
+//            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+//                remove(PREF_SUNRISE_TIME_PREFIX + appWidgetId + "_millis")
+//                remove(PREF_SUNRISE_TIME_PREFIX + appWidgetId + "_date")
+//                remove(PREF_SUNSET_TIME_PREFIX + appWidgetId + "_millis")  // 日の入り時刻も削除
+//                remove(PREF_SUNSET_TIME_PREFIX + appWidgetId + "_date")    // 日の入り日付も削除
+//                remove(PREF_LATITUDE_PREFIX + appWidgetId)
+//                remove(PREF_LONGITUDE_PREFIX + appWidgetId)
+//            }
+//            Log.i(TAG, "Cleaned up data for deleted widget ID: $appWidgetId")
         }
     }
 
     /**
      * ブロードキャストインテントを受信したときに呼び出される。
-     * super.onReceive を最初に呼び出すことが重要。
      */
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent) // これを呼ばないと onUpdate などがディスパッチされない
-
         val action = intent.action
-        Log.d(TAG, "onReceive: action = $action")
+        Log.d(TAG, "onReceive: action = $action from intent: $intent")
+
+        // Handle widget update actions, including those from LocationInputActivity
+        if (AppWidgetManager.ACTION_APPWIDGET_UPDATE == action) {
+            val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+            if (appWidgetIds != null) {
+                 Log.d(TAG, "Received ACTION_APPWIDGET_UPDATE for IDs: ${appWidgetIds.joinToString()}")
+                // This will call our onUpdate method
+                super.onReceive(context, intent) // Important to let the base class handle standard updates
+                // Explicitly update based on potentially new coordinates
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                appWidgetIds.forEach { appWidgetId ->
+                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // Force recalc after location change
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+                }
+                return // Consume this action
+            }
+        } else {
+             super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
+        }
+
 
         when (action) {
             ACTION_ALARM_UPDATE -> {
-                // AlarmManagerからのカスタム更新アクション
                 val appWidgetId = intent.getIntExtra(
                     AppWidgetManager.EXTRA_APPWIDGET_ID,
                     AppWidgetManager.INVALID_APPWIDGET_ID
                 )
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                    Log.d(TAG, "Received custom alarm for widget ID: $appWidgetId")
-                    // アラーム経由での更新時には、まず位置情報取得を試み、成功したらウィジェット更新・スケジュール
-                    // 位置情報がない場合や取得失敗した場合も、保存された値で更新を試み、スケジュールは行う
-                    requestLocationAndUpdate(
-                        context,
-                        appWidgetId,
-                        false
-                    ) // アラームからの更新では通常日の出再計算不要（日が跨いでいればgetSunriseTimeForWidget内で再計算される）
-                    // 注: requestLocationAndUpdate の中で updateAppWidgetInternal と scheduleNextUpdate を呼んでいるため、
-                    // ここでそれらを再度呼び出す必要はありません。
+                    Log.d(TAG, "Received custom alarm for widget ID: $appWidgetId (likely from SunriseWidgetAlarmUtils)")
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, false) // Regular update
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId) // Reschedule
                 } else {
                     Log.w(TAG, "Received alarm intent without valid widget ID.")
                 }
             }
-
-            Intent.ACTION_BOOT_COMPLETED -> {
-                Log.d(TAG, "Received ACTION_BOOT_COMPLETED")
-                // デバイス起動時にすべてのアクティブなウィジェットのアラームを再スケジュール
+            Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
+                 Log.d(TAG, "Received $action. Rescheduling/recalculating for all widgets.")
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val thisAppWidget = ComponentName(context.packageName, javaClass.name)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
                 appWidgetIds.forEach { appWidgetId ->
-                    Log.d(TAG, "Rescheduling alarm for widget ID: $appWidgetId after boot")
-                    // 再起動後は日の出時刻が変わっている可能性があるため、位置情報再取得と更新を試みる
-                    requestLocationAndUpdate(context, appWidgetId, true) // 強制的に日の出再計算を試みる
-                }
-                // 注: requestLocationAndUpdate の中で scheduleNextUpdate も呼んでいます。
-            }
-
-            Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
-                Log.d(TAG, "Received $action")
-                // 日付またはタイムゾーン変更時に、全ウィジェットの日の出時刻を強制的に再計算し、アラームを再設定
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val thisAppWidget = ComponentName(context.packageName, javaClass.name)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
-                appWidgetIds.forEach { appWidgetId ->
-                    Log.d(
-                        TAG,
-                        "Re-calculating sunrise and rescheduling for widget ID: $appWidgetId due to $action"
-                    )
-                    // 位置情報は再取得せず、保存されたもの（またはデフォルト値）を使って日の出を再計算して更新・スケジュール
-                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // 強制再計算
+                    Log.d(TAG, "Processing widget ID: $appWidgetId due to $action")
+                    // For these system events, recalculate and reschedule
+                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // forceRecalc
                     SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
                 }
             }
-            // 他のアクション (e.g., AppWidgetManager.ACTION_APPWIDGET_UPDATE) は super.onReceive で処理される
         }
     }
-
-    // --- ウィジェット更新ロジック ---
-
 
     /**
      * 指定されたウィジェットIDの表示を更新する内部メソッド。
@@ -219,6 +178,15 @@ class Oyatsu : AppWidgetProvider() {
         Log.d(TAG, "Updating widget ID: $appWidgetId, forceSunriseRecalc: $forceRecalc")
         val views = RemoteViews(context.packageName, R.layout.widget_oyatsu)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        // Load latitude and longitude
+        val latitude = prefs.getFloat(PREF_LATITUDE_PREFIX + appWidgetId, DEFAULT_LATITUDE.toFloat()).toDouble()
+        val longitude = prefs.getFloat(PREF_LONGITUDE_PREFIX + appWidgetId, DEFAULT_LONGITUDE.toFloat()).toDouble()
+
+        // Check if coordinates are default and prompt user if so (only if not already prompted recently)
+        val isDefaultLocation = (latitude == DEFAULT_LATITUDE && longitude == DEFAULT_LONGITUDE)
+        val locationSet = prefs.contains(PREF_LATITUDE_PREFIX + appWidgetId)
+
+        Log.d(TAG, "Using location for widget $appWidgetId: Lat=$latitude, Lon=$longitude. IsDefault: $isDefaultLocation, IsSet: $locationSet")
 
         // --- 1. 既存の暦情報計算 ---
         val calendar = Calendar.getInstance()
@@ -234,28 +202,42 @@ class Oyatsu : AppWidgetProvider() {
         val todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(prefs, appWidgetId, false, forceRecalc) // 通常は再計算不要
         // sunTime変数をスコープ外でも使えるよう宣言
         var sunTime = ""
-        val japaneseTimeText: String = if (todaySunriseTime != null && todaySunsetTime != null) {
-            val resultPair = calculateJapaneseTime(todaySunriseTime, todaySunsetTime) // Pair を取得
-            val calculatedText = resultPair.first // Pair の最初の値を取得
+        val japaneseTimeText: String
+
+        if (todaySunriseTime != null && todaySunsetTime != null) {
+            val resultPair = calculateJapaneseTime(todaySunriseTime, todaySunsetTime)
+            japaneseTimeText = resultPair.first
             sunTime = resultPair.second
-            Log.d(TAG, "Widget $appWidgetId: $calculatedText (sunTime: $sunTime)") // 計算結果と sunTime をログ出力
-            // if式の「結果」として calculatedText (String型) を返す
-            calculatedText
+            Log.d(TAG, "Widget $appWidgetId: $japaneseTimeText (sunTime: $sunTime)")
         } else {
-            // 日の出・日の入り時刻の計算が失敗した場合
-            Log.w(TAG, "Widget $appWidgetId: Failed to calculate sunrise/sunset time.")
-            // 強制的にデフォルト位置情報を保存して再試行
-            saveDefaultLocation(context, appWidgetId)
-            // 一度だけ再試行（無限ループ防止）
-            if (!forceRecalc) {
-                Log.d(TAG, "Retrying sunrise/sunset calculation with default location.")
-                // 次回の更新をスケジュールする（短い間隔で）
-                scheduleQuickUpdate(context, appWidgetId)
-            }
-            // else式の「結果」としてデフォルトメッセージ (String型) を返す
-            sunTime = "計算中..."
-            "時刻計算中..."
+            Log.w(TAG, "Widget $appWidgetId: Failed to calculate sunrise/sunset. Using default text.")
+            japaneseTimeText = if (!locationSet) context.getString(R.string.location_not_set_tap_to_set) else "時刻計算エラー"
+            sunTime = context.getString(R.string.fetching_location) // Or some error indicator
+            // Potentially schedule a quick retry if it was due to a transient issue, though less likely without GPS
+            // SunriseWidgetAlarmUtils.scheduleQuickUpdate(context, appWidgetId) // If you implement this
         }
+        // val japaneseTimeText: String = if (todaySunriseTime != null && todaySunsetTime != null) {
+        //     val resultPair = calculateJapaneseTime(todaySunriseTime, todaySunsetTime) // Pair を取得
+        //     val calculatedText = resultPair.first // Pair の最初の値を取得
+        //     sunTime = resultPair.second
+        //     Log.d(TAG, "Widget $appWidgetId: $calculatedText (sunTime: $sunTime)") // 計算結果と sunTime をログ出力
+        //     // if式の「結果」として calculatedText (String型) を返す
+        //     calculatedText
+        // } else {
+        //     // 日の出・日の入り時刻の計算が失敗した場合
+        //     Log.w(TAG, "Widget $appWidgetId: Failed to calculate sunrise/sunset time.")
+        //     // 強制的にデフォルト位置情報を保存して再試行
+        //     saveDefaultLocation(context, appWidgetId)
+        //     // 一度だけ再試行（無限ループ防止）
+        //     if (!forceRecalc) {
+        //         Log.d(TAG, "Retrying sunrise/sunset calculation with default location.")
+        //         // 次回の更新をスケジュールする（短い間隔で）
+        //         scheduleQuickUpdate(context, appWidgetId)
+        //     }
+        //     // else式の「結果」としてデフォルトメッセージ (String型) を返す
+        //     sunTime = "計算中..."
+        //     "時刻計算中..."
+        // }
 
         // widget_oyatsu.xml で表示する項目
         views.setTextViewText(R.id.text_japanese_year_month, "$japaneseYear $japaneseMonthName")
@@ -266,7 +248,22 @@ class Oyatsu : AppWidgetProvider() {
         )
         views.setTextViewText(R.id.text_sun_time, sunTime)
 
-        // --- 3. ウィジェットを更新 ---
+        // // --- 3. Setup widget tap to open LocationInputActivity ---
+        // val intent = Intent(context, LocationInputActivity::class.java).apply {
+        //     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        //     // Add FLAG_ACTIVITY_NEW_TASK if launching from a BroadcastReceiver context
+        //     // PendingIntent will often handle this, but good practice if constructing intent directly for startActivity
+        //     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // Clears previous instances
+        // }
+        // val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        //     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        // } else {
+        //     PendingIntent.FLAG_UPDATE_CURRENT
+        // }
+        // val pendingIntent = PendingIntent.getActivity(context, appWidgetId /* unique request code per widget */, intent, pendingIntentFlags)
+        // views.setOnClickPendingIntent(R.id.widget_root_layout, pendingIntent) // Assume your root layout ID is widget_root_layout
+
+        // --- ウィジェットを更新 ---
         try {
             appWidgetManager.updateAppWidget(appWidgetId, views)
             Log.d(TAG, "Widget $appWidgetId view updated successfully.")
@@ -296,6 +293,7 @@ class Oyatsu : AppWidgetProvider() {
         if (isDaytime) {
             // 日中: 日の出から日の入りまでを6等分
             val dayDurationMillis = sunsetMillis - sunriseMillis
+            if (dayDurationMillis <= 0) return Pair("時間計算エラー", "日照時間異常")
             val timeUnitMillis = dayDurationMillis / 6.0 // 1時間単位（不定時法）
             val timePassedMillis = currentTimeMillis - sunriseMillis
 
@@ -351,266 +349,14 @@ class Oyatsu : AppWidgetProvider() {
         }
     }
 
-    private fun scheduleQuickUpdate(context: Context, appWidgetId: Int) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pendingIntent = createAlarmPendingIntent(context, appWidgetId) // あなたのユーティリティクラスを使用
-
-        // 30秒後に再更新
-        val triggerAtMillis = SystemClock.elapsedRealtime() + 30 * 1000L
-
-        // APIレベル31 (Android 12) 以上での正確なアラームの権限チェック
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { // Android S は API 31
-            if (alarmManager.canScheduleExactAlarms()) {
-                // 正確なアラームを設定する権限がある場合
-                try {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                        triggerAtMillis,
-                        pendingIntent
-                    )
-                    Log.d(TAG, "Scheduled exact quick update in 30 seconds for widget $appWidgetId")
-                } catch (e: SecurityException) {
-                    // ごくまれに、チェックと設定の間に権限が失われる可能性も考慮し、念のため捕捉
-                    Log.e(TAG, "SecurityException while setting exact alarm (after check) for widget $appWidgetId", e)
-                    showExactAlarmPermissionRequiredMessage(context) // ユーザーへの通知
-                } catch (e: Exception) {
-                    // その他の予期しないエラー
-                    Log.e(TAG, "Unexpected error while setting exact alarm for widget $appWidgetId", e)
-                }
-
-            } else {
-                // 正確なアラームを設定する権限がない場合
-                Log.w(TAG, "Exact alarm permission denied for widget $appWidgetId. Cannot schedule exact alarm.")
-                // ユーザーに権限がないことを通知し、設定画面への誘導を促す
-                showExactAlarmPermissionRequiredMessage(context)
-                // ここでは正確なアラームは設定しない。必要であればsetAndAllowWhileIdleなどで不正確なアラームを代替として設定することも可能。
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // APIレベル23 (M) から 30 (R) の場合
-            // setExactAndAllowWhileIdle を使用 (Dozeモード中でも動作)
-            // このAPIレベルでは SCHEDULE_EXACT_ALARM 権限のチェックは不要
-            try {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
-                Log.d(TAG, "Scheduled exact quick update (M+) in 30 seconds for widget $appWidgetId")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error scheduling quick update (M+) for widget $appWidgetId", e)
-            }
-        } else {
-            // APIレベル22 (Lollipop MR1) 以下の場合
-            // setExact を使用
-            // このAPIレベルでは SCHEDULE_EXACT_ALARM 権限のチェックは不要
-            try {
-                alarmManager.setExact(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
-                Log.d(TAG, "Scheduled exact quick update (pre-M) in 30 seconds for widget $appWidgetId")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error scheduling quick update (pre-M) for widget $appWidgetId", e)
-            }
-        }
-    }
-
     /**
-     * 正確なアラーム権限が必要であることをユーザーに通知し、設定画面への誘導を促す
+     * 位置情報処理後のウィジェット更新とスケジュール処理
      */
-    private fun showExactAlarmPermissionRequiredMessage(context: Context) {
-        // ユーザーにわかりやすいメッセージを表示 (例: Toast, Dialog)
-        Toast.makeText(context, "正確なアラームを設定するために許可が必要です。", Toast.LENGTH_LONG).show()
-        // API レベル 31 (Android 12) 以上の場合
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-            // ウィジェットからの呼び出しでは必ず FLAG_ACTIVITY_NEW_TASK が必要
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            try {
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                // 設定画面を開くIntentが処理できない場合のエラー処理
-                Log.e(TAG, "Could not open exact alarm settings screen", e)
-                // 一般設定画面へ移動する代替処理
-                openAppSettings(context)
-            }
-        } else {
-            // Android 12 未満ではアプリの設定画面へ誘導
-            openAppSettings(context)
-        }
-    }
-    // アプリの設定画面を開く関数
-    private fun openAppSettings(context: Context) {
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-            val uri = Uri.fromParts("package", context.packageName, null)
-            intent.data = uri
-            // ウィジェットからの呼び出しでは必ず FLAG_ACTIVITY_NEW_TASK が必要
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Could not open app settings", e)
-            Toast.makeText(context, "設定画面を開けませんでした。手動でシステム設定からアプリの権限を確認してください。", Toast.LENGTH_LONG).show()
-        }
-    }
-    // --- 位置情報取得 ---
-    private fun requestLocationAndUpdate(
+    fun proceedWithWidgetUpdate(
         context: Context,
         appWidgetId: Int,
         forceSunriseRecalc: Boolean
     ) {
-        Log.d(TAG, "Attempting to request location for widget ID: $appWidgetId")
-
-        // サービスとして実行するために、WakeLockを取得
-        val wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WidgetUpdate:LocationWakeLock")
-        wakeLock.acquire(30000) // 最大30秒間
-
-        try {
-            // FusedLocationProviderClient初期化
-            fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-
-            // 権限確認
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
-                PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) !=
-                PackageManager.PERMISSION_GRANTED) {
-
-                Log.e(TAG, "Location permissions not granted despite user having approved them")
-                saveDefaultLocation(context, appWidgetId)
-                proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc)
-                if (wakeLock.isHeld) wakeLock.release()
-                return
-            }
-
-            // 位置情報コールバック
-            val locationCallback = object : LocationCallback() {
-                override fun onLocationResult(locationResult: LocationResult) {
-                    Log.d(TAG, "Location callback received for widget $appWidgetId")
-                    fusedLocationClient.removeLocationUpdates(this)
-
-                    val location = locationResult.lastLocation
-                    if (location != null) {
-                        Log.i(TAG, "Location obtained via callback for $appWidgetId: " +
-                                "Lat=${location.latitude}, Lon=${location.longitude}, " +
-                                "Accuracy=${location.accuracy}m")
-
-                        // SharedPreferencesに保存
-                        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
-                            putFloat(PREF_LATITUDE_PREFIX + appWidgetId, location.latitude.toFloat())
-                            putFloat(PREF_LONGITUDE_PREFIX + appWidgetId, location.longitude.toFloat())
-                            apply()
-                        }
-
-                        // ウィジェット更新
-                        proceedWithWidgetUpdate(context, appWidgetId, true)
-                    } else {
-                        Log.w(TAG, "Location result received but location is null for widget $appWidgetId")
-                        tryLastKnownLocation(context, appWidgetId, forceSunriseRecalc)
-                    }
-
-                    // WakeLock解放
-                    if (wakeLock.isHeld) wakeLock.release()
-                }
-            }
-
-            // 最新のLocation API用の適切なリクエスト設定
-            val locationRequest = LocationRequest.Builder(10000L)
-                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-                .setMaxUpdates(1)
-                .setMinUpdateIntervalMillis(0)
-                .setDurationMillis(15000L) // 15秒間だけ更新を受け付ける
-                .build()
-
-            // 位置情報更新をリクエスト
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback,
-                Looper.getMainLooper()
-            )
-
-            // タイムアウト処理
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    // コールバックの登録を削除
-                    fusedLocationClient.removeLocationUpdates(locationCallback)
-                    Log.w(TAG, "Location request timed out for widget $appWidgetId")
-
-                    // 最後の既知の位置情報を試す
-                    tryLastKnownLocation(context, appWidgetId, forceSunriseRecalc)
-
-                    // WakeLock解放
-                    if (wakeLock.isHeld) wakeLock.release()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Exception in timeout handler", e)
-                    saveDefaultLocation(context, appWidgetId)
-                    proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc)
-
-                    // WakeLock解放
-                    if (wakeLock.isHeld) wakeLock.release()
-                }
-            }, 20000) // 20秒のタイムアウト
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception when requesting location", e)
-            saveDefaultLocation(context, appWidgetId)
-            proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc)
-
-            // エラー時もWakeLock解放
-            if (wakeLock.isHeld) wakeLock.release()
-        }
-    }
-
-    // 最後の既知の位置情報を取得する補助関数
-    private fun tryLastKnownLocation(context: Context, appWidgetId: Int, forceSunriseRecalc: Boolean) {
-        if (ContextCompat.checkSelfPermission(context,
-                Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(context,
-                Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-
-            LocationServices.getFusedLocationProviderClient(context).lastLocation
-                .addOnSuccessListener { lastLocation ->
-                    if (lastLocation != null) {
-                        Log.i(TAG, "Using last known location for widget $appWidgetId")
-                        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
-                            putFloat(PREF_LATITUDE_PREFIX + appWidgetId, lastLocation.latitude.toFloat())
-                            putFloat(PREF_LONGITUDE_PREFIX + appWidgetId, lastLocation.longitude.toFloat())
-                            apply()
-                        }
-                        proceedWithWidgetUpdate(context, appWidgetId, true)
-                    } else {
-                        Log.w(TAG, "No last location available for widget $appWidgetId")
-                        saveDefaultLocation(context, appWidgetId)
-                        proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc)
-                    }
-                }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "Error getting last location for widget $appWidgetId", e)
-                    saveDefaultLocation(context, appWidgetId)
-                    proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc)
-                }
-        } else {
-            saveDefaultLocation(context, appWidgetId)
-            proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc)
-        }
-    }
-
-    /**
-     * デフォルトの位置情報（東京）を保存する
-     */
-    private fun saveDefaultLocation(context: Context, appWidgetId: Int) {
-        Log.i(TAG, "Saving default location (Tokyo) for widget $appWidgetId")
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
-            putFloat(PREF_LATITUDE_PREFIX + appWidgetId, DEFAULT_LATITUDE.toFloat())
-            putFloat(PREF_LONGITUDE_PREFIX + appWidgetId, DEFAULT_LONGITUDE.toFloat())
-        }
-    }
-
-    /**
-     * 位置情報処理後のウィジェット更新とスケジュール処理
-     */
-    private fun proceedWithWidgetUpdate(context: Context, appWidgetId: Int, forceSunriseRecalc: Boolean) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         // ウィジェットを更新
         updateAppWidgetInternal(context, appWidgetManager, appWidgetId, forceSunriseRecalc)

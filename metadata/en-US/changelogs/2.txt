@@ -1,0 +1,9 @@
+# v2.0
+
+## Add  
+* Japanese calendar
+* Japanese-style month names
+* Gregorian date
+* Japanese clock time (seasonal time)
+* 24 solar terms
+* Chinese zodiac signs  

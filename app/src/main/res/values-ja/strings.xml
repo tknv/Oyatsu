@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">おやつ</string>
-</resources>
+    <string name="app_widget_description">伝統的な日本の時間を表示します。</string>
+    <string name="title_activity_location_input">おやつ</string>
+    <string name="label_latitude">緯度（-90から90まで）</string>
+    <string name="hint_latitude">例：35.6895</string>
+    <string name="label_longitude">経度（-180から180まで）</string>
+    <string name="hint_longitude">例：139.6917</string>
+    <string name="button_apply">適用</string>
+    <string name="invalid_latitude">無効な緯度です。-90から90の間でなければなりません。</string>
+    <string name="invalid_longitude">無効な経度です。-180から180の間でなければなりません。</string>
+    <string name="location_saved">場所が保存されました。</string>
+    <string name="widget_default_location_used">デフォルトの場所（東京駅）を使用しています。タップして設定してください。</string>
+    <string name="location_not_set_tap_to_set">場所が設定されていません。タップして設定してください。</string>
+    <string name="info_share_from_maps">地図アプリ(OSmAnd)から場所を共有して、ここに設定することもできます。グーグルのマップアプリからは共有できないので緯度経度コピペして張り付けてください。</string>
+    <string name="failed_to_parse_shared_location">共有された場所の解析に失敗しました。</string>
+    <string name="fetching_location">場所を取得しています...</string>
+    <string name="action_settings">設定</string> </resources>

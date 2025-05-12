@@ -1,3 +1,18 @@
 <resources>
     <string name="app_name">Oyatsu</string>
-</resources>
+    <string name="app_widget_description">Displays traditional Japanese time.</string>
+    <string name="title_activity_location_input">Oyatsu</string>
+    <string name="label_latitude">Latitude (-90 to 90)</string>
+    <string name="hint_latitude">e.g., 35.6895</string>
+    <string name="label_longitude">Longitude (-180 to 180)</string>
+    <string name="hint_longitude">e.g., 139.6917</string>
+    <string name="button_apply">Apply</string>
+    <string name="invalid_latitude">Invalid latitude. Must be between -90 and 90.</string>
+    <string name="invalid_longitude">Invalid longitude. Must be between -180 and 180.</string>
+    <string name="location_saved">Location saved.</string>
+    <string name="widget_default_location_used">Using default location (Tokyo Station). Tap to set.</string>
+    <string name="location_not_set_tap_to_set">Location not set. Tap to set.</string>
+    <string name="info_share_from_maps">You can also share a location from your map app to set it here.</string>
+    <string name="failed_to_parse_shared_location">Failed to parse shared location.</string>
+    <string name="fetching_location">Fetching location...</string>
+    <string name="action_settings">Settings</string> </resources>

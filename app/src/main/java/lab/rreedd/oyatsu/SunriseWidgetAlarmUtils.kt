@@ -8,6 +8,8 @@ import android.content.Intent
 //import android.content.SharedPreferences
 import android.os.Build
 import android.util.Log
+import android.widget.RemoteViews
+import android.widget.Toast
 import androidx.work.*
 import androidx.core.content.edit
 import com.luckycatlabs.sunrisesunset.SunriseSunsetCalculator
@@ -23,10 +25,10 @@ private const val TAG = "OyatsuWidget"
  */
 object SunriseWidgetAlarmUtils {
 //    private const val TAG = "SunriseWidgetAlarm"
-    const val PREFS_NAME = "widget_preferences"
+    const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
 
     // 定数定義
-    const val ACTION_ALARM_UPDATE = "com.example.action.ALARM_UPDATE"
+    const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ALARM_UPDATE"
     const val PREF_SUNRISE_TIME_PREFIX = "sunrise_time_"
     const val PREF_SUNSET_TIME_PREFIX = "sunset_time_"
     const val PREF_LATITUDE_PREFIX = "latitude_"
@@ -36,6 +38,42 @@ object SunriseWidgetAlarmUtils {
     const val DEFAULT_LATITUDE = 35.6895
     const val DEFAULT_LONGITUDE = 139.6917
 
+    fun getCoordinates(context: Context, appWidgetId: Int): Pair<Double, Double> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val latitude = prefs.getFloat(PREF_LATITUDE_PREFIX + appWidgetId, DEFAULT_LATITUDE.toFloat()).toDouble()
+        val longitude = prefs.getFloat(PREF_LONGITUDE_PREFIX + appWidgetId, DEFAULT_LONGITUDE.toFloat()).toDouble()
+        return latitude to longitude
+    }
+
+    fun validateAndSaveCoordinates(context: Context, appWidgetId: Int, latitude: Double?, longitude: Double?) {
+        if (latitude == null || longitude == null || !isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+            Toast.makeText(context, "無効な緯度または経度が入力されました", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putFloat(PREF_LATITUDE_PREFIX + appWidgetId, latitude.toFloat())
+            putFloat(PREF_LONGITUDE_PREFIX + appWidgetId, longitude.toFloat())
+            apply()
+        }
+    }
+
+    fun updateWidgetCoordinates(context: Context, appWidgetId: Int, views: RemoteViews) {
+        val (latitude, longitude) = getCoordinates(context, appWidgetId)
+        views.setTextViewText(R.id.editTextLatitude, "緯度: $latitude")
+        views.setTextViewText(R.id.editTextLongitude, "経度: $longitude")
+        Log.d("SunriseWidgetAlarmUtils", "Widget $appWidgetId updated with coordinates: Lat=$latitude, Lon=$longitude")
+    }
+
+    private fun isValidLatitude(latitude: Double): Boolean {
+        return latitude in -90.0..90.0
+    }
+
+    private fun isValidLongitude(longitude: Double): Boolean {
+        return longitude in -180.0..180.0
+    }
+    
     /**
      * ウィジェットの次回更新をスケジュールする
      */
