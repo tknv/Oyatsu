@@ -1,0 +1,12 @@
+# v2.1
+
+## Add  
+* Japanese calendar
+* Japanese-style month names
+* Gregorian date
+* Japanese clock time (seasonal time)
+* 24 solar terms
+* Chinese zodiac signs  
+
+## Remove  
+* GPS libs  
