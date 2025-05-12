@@ -2,6 +2,12 @@
 .gradle/
 build/
 
+# yet not setup automation
+.github/
+
+# exclude release build dir
+ app/release/
+
 # Local configuration file (sdk path, etc)
 local.properties
 
