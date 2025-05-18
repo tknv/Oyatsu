@@ -17,7 +17,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
+    testOptions {
+        unitTests.isReturnDefaultValues = true // Groovyの 'returnDefaultValues = true' から変更
+//        unitTests.all { test ->              // 'it' の代わりに 'test' のような明示的な名前を使用できます
+//            test.useJUnitPlatform()          // JUnit5プラットフォームの使用を宣言
+//        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -52,7 +57,15 @@ dependencies {
     implementation(libs.sunrise.sunset.calculator)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.appcompat)
-    testImplementation(libs.junit)
+    implementation(libs.support.annotations)
+    implementation(libs.androidx.annotation)
+//    testImplementation(libs.jupiter.junit.jupiter.params)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.core)
+    testImplementation(libs.junit.junit)
+    testImplementation(libs.core.ktx)
+//    testRuntimeOnly(libs.jupiter.junit.jupiter.engine)
+//    testImplementation(libs.jupiter.junit.jupiter.api)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
