@@ -15,4 +15,6 @@
     <string name="info_share_from_maps">You can also share a location from your map app to set it here.</string>
     <string name="failed_to_parse_shared_location">Failed to parse shared location.</string>
     <string name="fetching_location">Fetching location...</string>
-    <string name="action_settings">Settings</string> </resources>
+    <string name="action_settings">Settings</string>
+    <string name="invalid_coordinates">Invalid coordinates</string>
+</resources>

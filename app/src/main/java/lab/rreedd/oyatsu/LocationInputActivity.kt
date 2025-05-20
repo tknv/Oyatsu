@@ -18,8 +18,8 @@ private const val TAG_INPUT_ACTIVITY = "LocationInputActivity"
 private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
 private const val PREF_LATITUDE_PREFIX = "latitude_"
 private const val PREF_LONGITUDE_PREFIX = "longitude_"
-const val DEFAULT_LATITUDE_STRING = "35.6895" // Tokyo Station
-const val DEFAULT_LONGITUDE_STRING = "139.6917" // Tokyo Station
+const val DEFAULT_LATITUDE_STRING = "35.675163966" // Tokyo Station
+const val DEFAULT_LONGITUDE_STRING = "139.766830266" // Tokyo Station
 
 class LocationInputActivity : AppCompatActivity() {
 
@@ -94,21 +94,33 @@ class LocationInputActivity : AppCompatActivity() {
                             editTextLatitude.setText(lat.toString())
                             editTextLongitude.setText(lon.toString())
                             validateAndEnableApplyButton() // Validate after setting
-                            Toast.makeText(this, "geo URIから場所を解析しました", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                this,
+                                "geo URIから場所を解析しました",
+                                Toast.LENGTH_SHORT
+                            ).show()
                             // geo URIからの直接保存と更新はここでは行わず、ユーザーがApplyボタンを押すのを待つ。
                             // もし自動で保存・更新したい場合は、saveCoordinates() を呼び出す。
                             // 保存する
                         } catch (e: NumberFormatException) {
                             Log.e(TAG_INPUT_ACTIVITY, "geo URIの解析に失敗: $path", e)
-                            Toast.makeText(this, getString(R.string.failed_to_parse_shared_location), Toast.LENGTH_LONG).show()
+                            Toast.makeText(
+                                this,
+                                getString(R.string.failed_to_parse_shared_location),
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     } else {
-                         // Try to parse from query parameter if it's like geo:0,0?q=lat,lng(label)
+                        // Try to parse from query parameter if it's like geo:0,0?q=lat,lng(label)
                         val query = uri.getQueryParameter("q")
                         if (query != null) {
                             parseCoordinatesFromText(query) // Reuse text parsing logic
                         } else {
-                            Toast.makeText(this, getString(R.string.failed_to_parse_shared_location), Toast.LENGTH_LONG).show()
+                            Toast.makeText(
+                                this,
+                                getString(R.string.failed_to_parse_shared_location),
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     }
                 }
@@ -117,7 +129,8 @@ class LocationInputActivity : AppCompatActivity() {
     }
 
 
-    private val coordinatePattern = Pattern.compile("([-+]?\\d{1,2}(\\.\\d+)?),\\s*([-+]?\\d{1,3}(\\.\\d+)?)")
+    private val coordinatePattern =
+        Pattern.compile("([-+]?\\d{1,2}(\\.\\d+)?),\\s*([-+]?\\d{1,3}(\\.\\d+)?)")
 
     private fun parseCoordinatesFromText(text: String) {
         val matcher = coordinatePattern.matcher(text)
@@ -134,7 +147,11 @@ class LocationInputActivity : AppCompatActivity() {
                         editTextLatitude.setText(lat.toString())
                         editTextLongitude.setText(lon.toString())
                         validateAndEnableApplyButton()
-                        Toast.makeText(this, "共有テキストから場所を解析しました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this,
+                            "共有テキストから場所を解析しました",
+                            Toast.LENGTH_SHORT
+                        ).show()
                         return
                     }
                 }
@@ -142,7 +159,8 @@ class LocationInputActivity : AppCompatActivity() {
                 Log.e(TAG_INPUT_ACTIVITY, "テキストからの座標解析エラー: $text", e)
             }
         }
-        Toast.makeText(this, getString(R.string.failed_to_parse_shared_location), Toast.LENGTH_LONG).show()
+        Toast.makeText(this, getString(R.string.failed_to_parse_shared_location), Toast.LENGTH_LONG)
+            .show()
     }
 
 
@@ -154,24 +172,29 @@ class LocationInputActivity : AppCompatActivity() {
         val targetAppWidgetId = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             appWidgetId
         } else {
-            getFirstWidgetId().takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID } ?: 0 // 0はデフォルト用キーの一部として使うなど工夫が必要
+            getFirstWidgetId().takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID } ?: 0 // 0はデフォルト用キーの一部として使う
         }
 
         val latKey = if (targetAppWidgetId != 0) PREF_LATITUDE_PREFIX + targetAppWidgetId else "default_latitude"
         val lonKey = if (targetAppWidgetId != 0) PREF_LONGITUDE_PREFIX + targetAppWidgetId else "default_longitude"
 
+        // SharedPreferencesから文字列として読み込む。
+        // 1. targetAppWidgetId に紐づく値を試す
+        // 2. 存在しなければ "default_latitude" (または "default_longitude") を試す
+        // 3. それも存在しなければ、ハードコードされた DEFAULT_LATITUDE_STRING (または DEFAULT_LONGITUDE_STRING) を使う
+        val latString = prefs.getString(latKey, prefs.getString("default_latitude", DEFAULT_LATITUDE_STRING))
+        val lonString = prefs.getString(lonKey, prefs.getString("default_longitude", DEFAULT_LONGITUDE_STRING))
 
-        // ウィジェットID がない（アプリ直接起動）の場合でも、何らかのデフォルト値を表示したい
-        // 最後に保存された値を表示するか、固定のデフォルト値を表示する
-        val lat = prefs.getFloat(latKey, prefs.getFloat("default_latitude", DEFAULT_LATITUDE_STRING.toFloat()))
-        val lon = prefs.getFloat(lonKey, prefs.getFloat("default_longitude", DEFAULT_LONGITUDE_STRING.toFloat()))
+        // 読み込んだ文字列をDoubleに変換する。変換失敗時はハードコードされたデフォルト値をDoubleに変換して使用。
+        val lat = (latString ?: DEFAULT_LATITUDE_STRING).toDoubleOrNull() ?: DEFAULT_LATITUDE_STRING.toDouble()
+        val lon = (lonString ?: DEFAULT_LONGITUDE_STRING).toDoubleOrNull() ?: DEFAULT_LONGITUDE_STRING.toDouble()
 
         editTextLatitude.setText(lat.toString())
         editTextLongitude.setText(lon.toString())
         validateAndEnableApplyButton()
     }
 
-     private fun getFirstWidgetId(): Int {
+    private fun getFirstWidgetId(): Int {
         val appWidgetManager = AppWidgetManager.getInstance(this)
         val componentName = ComponentName(this, Oyatsu::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -204,7 +227,8 @@ class LocationInputActivity : AppCompatActivity() {
                 latValid = true
                 editTextLatitude.error = null
             } else {
-                if (latStr.isNotEmpty()) editTextLatitude.error = getString(R.string.invalid_latitude)
+                if (latStr.isNotEmpty()) editTextLatitude.error =
+                    getString(R.string.invalid_latitude)
             }
         } catch (e: NumberFormatException) {
             Log.e("TAG", "Number format exception occurred", e)
@@ -217,7 +241,8 @@ class LocationInputActivity : AppCompatActivity() {
                 lonValid = true
                 editTextLongitude.error = null
             } else {
-                if (lonStr.isNotEmpty()) editTextLongitude.error = getString(R.string.invalid_longitude)
+                if (lonStr.isNotEmpty()) editTextLongitude.error =
+                    getString(R.string.invalid_longitude)
             }
         } catch (e: NumberFormatException) {
             Log.e("TAG", "Number format exception occurred", e)
@@ -231,50 +256,51 @@ class LocationInputActivity : AppCompatActivity() {
     private fun saveCoordinates() {
         val latStr = editTextLatitude.text.toString()
         val lonStr = editTextLongitude.text.toString()
-        val latitude = latStr.toDoubleOrNull()
-        val longitude = lonStr.toDoubleOrNull()
-        // if (latitude == null || longitude == null) {
-        //     Toast.makeText(this, "Invalid input.", Toast.LENGTH_SHORT).show()
-        //     return
-        // }
+        val latitude = latStr.toDoubleOrNull()  // StringからDouble?に変換
+        val longitude = lonStr.toDoubleOrNull() // StringからDouble?に変換
 
-        // if (!(latitude >= -90.0 && latitude <= 90.0)) {
-        //     Toast.makeText(this, getString(R.string.invalid_latitude), Toast.LENGTH_LONG).show()
-        //     return
-        // }
-        // if (!(longitude >= -180.0 && longitude <= 180.0)) {
-        //     Toast.makeText(this, getString(R.string.invalid_longitude), Toast.LENGTH_LONG).show()
-        //     return
-        // }
-        if (latitude == null || longitude == null || !buttonApply.isEnabled) { // buttonApply.isEnabled もチェック
-            Toast.makeText(this, "入力が無効です。", Toast.LENGTH_SHORT).show()
+        if (latitude == null || longitude == null || !buttonApply.isEnabled) {
+            Toast.makeText(this, getString(R.string.invalid_coordinates), Toast.LENGTH_SHORT).show()
             return
         }
+
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit {
-            // アプリとして起動された場合、特定のウィジェットIDがない。
-            // この場合、既存の全ウィジェットの設定を更新するか、
-            // または「デフォルト設定」として保存し、新規ウィジェット作成時に使用する。
             if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                 // ウィジェット設定フローから起動された場合
-                putFloat(PREF_LATITUDE_PREFIX + appWidgetId, latitude.toFloat())
-                putFloat(PREF_LONGITUDE_PREFIX + appWidgetId, longitude.toFloat())
-                Log.d(TAG_INPUT_ACTIVITY, "Saved coordinates for widget ID $appWidgetId: $latitude, $longitude")
+                putString(
+                    PREF_LATITUDE_PREFIX + appWidgetId,
+                    latitude.toString()
+                ) // DoubleをStringとして保存
+                putString(
+                    PREF_LONGITUDE_PREFIX + appWidgetId,
+                    longitude.toString()
+                ) // DoubleをStringとして保存
+                Log.d(
+                    TAG_INPUT_ACTIVITY,
+                    "Saved coordinates for widget ID $appWidgetId: $latitude, $longitude"
+                )
             } else {
                 // アプリから直接起動された場合：全ウィジェットを更新 + デフォルト値を更新
-                putFloat("default_latitude", latitude.toFloat())
-                putFloat("default_longitude", longitude.toFloat())
+                putString("default_latitude", latitude.toString()) // DoubleをStringとして保存
+                putString("default_longitude", longitude.toString()) // DoubleをStringとして保存
                 Log.d(TAG_INPUT_ACTIVITY, "Saved as default coordinates: $latitude, $longitude")
 
                 val appWidgetManager = AppWidgetManager.getInstance(this@LocationInputActivity)
                 val componentName = ComponentName(this@LocationInputActivity, Oyatsu::class.java)
                 val allWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
                 allWidgetIds.forEach { id ->
-                    putFloat(PREF_LATITUDE_PREFIX + id, latitude.toFloat())
-                    putFloat(PREF_LONGITUDE_PREFIX + id, longitude.toFloat())
-                    Log.d(TAG_INPUT_ACTIVITY, "Updated coordinates for existing widget ID $id: $latitude, $longitude")
+                    putString(PREF_LATITUDE_PREFIX + id, latitude.toString()) // DoubleをStringとして保存
+                    putString(
+                        PREF_LONGITUDE_PREFIX + id,
+                        longitude.toString()
+                    ) // DoubleをStringとして保存
+                    Log.d(
+                        TAG_INPUT_ACTIVITY,
+                        "Updated coordinates for existing widget ID $id: $latitude, $longitude"
+                    )
                 }
             }
-            apply() // 即時書き込み
+            apply() // 即時書き込みではなく非同期書き込みを推奨
         }
 
         Toast.makeText(this, getString(R.string.location_saved), Toast.LENGTH_SHORT).show()
@@ -289,13 +315,15 @@ class LocationInputActivity : AppCompatActivity() {
         }
 
         if (idsToUpdate.isNotEmpty()) {
-            val intentToBroadcast = Intent(this, Oyatsu::class.java).apply { // intentToBroadcast という新しい名前でIntentを作成
+            val intentToBroadcast = Intent(this, Oyatsu::class.java).apply {
                 action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, idsToUpdate)
             }
-            // applyブロックが完了した後で、設定済みの intentToBroadcast を使ってブロードキャストする
             sendBroadcast(intentToBroadcast)
-            Log.d(TAG_INPUT_ACTIVITY, "Sent update broadcast for widget IDs: ${idsToUpdate.joinToString()}")
+            Log.d(
+                TAG_INPUT_ACTIVITY,
+                "Sent update broadcast for widget IDs: ${idsToUpdate.joinToString()}"
+            )
         }
 
         // ウィジェット設定フローの場合、結果をセットして終了
@@ -306,7 +334,7 @@ class LocationInputActivity : AppCompatActivity() {
         // アプリのメイン画面として動作している場合、finish() はユーザーが戻るボタンを押した時のみ。
         // 設定後は画面に留まるのが一般的。ウィジェット設定時のみ finish() する。
         if (intent?.action == AppWidgetManager.ACTION_APPWIDGET_CONFIGURE || appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-             finish()
+            finish()
         }
     }
 }

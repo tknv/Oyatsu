@@ -54,6 +54,15 @@ private fun formatMillisToHHMMSS(millis: Long): String {
     return String.format("%02d:%02d:%02d", hours, minutes, seconds)
 }
 
+// For debug log format time
+private fun doubleFormatMillisToHHMMSS(millis: Double): String {
+    val totalSeconds = (millis / 1000).toInt()
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return String.format("%02d:%02d:%02d", hours, minutes, seconds)
+}
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30], instrumentedPackages = arrayOf("lab.rreedd.oyatsu"))
 @LooperMode(LooperMode.Mode.PAUSED)
@@ -64,8 +73,8 @@ class SunriseWidgetAlarmUtilsTest {
     private lateinit var editor: SharedPreferences.Editor
 
     enum class TestLocation(val id: String, val latitude: Double, val longitude: Double, var timeZoneId: String) {
-        TOKYO("Tokyo", 35.6895, 139.6917, "Asia/Tokyo"),
-        LONDON("London", 51.28401247, 0.053101, "Europe/London")
+        TOKYO("Tokyo", 35.681444600642514, 139.76579265965165, "Asia/Tokyo"),
+        LONDON("London", 51.4767726448187, -0.0006437020557569765, "Europe/London")
     }
 
     // これらはインスタンス変数として保持 (テストメソッド内で使用)
@@ -88,7 +97,7 @@ class SunriseWidgetAlarmUtilsTest {
         // sunriseWidgetAlarmUtils = SunriseWidgetAlarmUtils() // objectなのでインスタンス化不要
         // 現在のデバイスのタイムゾーンを取得
         val localTimeZoneId = TimeZone.getDefault().id
-        println("Local Time Zone: $localTimeZoneId")
+        Log.d("setUp", "Local Time Zone: $localTimeZoneId")
         // タイムゾーンをローカルタイムゾーンに変更
         TestLocation.TOKYO.timeZoneId = localTimeZoneId
         TestLocation.LONDON.timeZoneId = localTimeZoneId
@@ -125,6 +134,7 @@ class SunriseWidgetAlarmUtilsTest {
 
     return when {
         targetTimeMillis >= sunriseMillis && targetTimeMillis < sunsetMillis -> { // 昼の刻
+            // TODO:: after 0 AM and before sun rise, this logic does not work
             Log.d("getKoshikiTimeFor", "--- Daytime ---")
             val dayDuration = sunsetMillis - sunriseMillis
             Log.d("getKoshikiTimeFor", "dayDuration: $dayDuration (${formatMillisToHHMMSS(dayDuration)})")
@@ -143,7 +153,7 @@ class SunriseWidgetAlarmUtilsTest {
             Log.d("getKoshikiTimeFor", "kokuIndex: $kokuIndex")
             KoshikiTime(dayEto[etoIndex], kokuCount[kokuIndex])
         }
-        targetTimeMillis >= sunsetMillis && targetTimeMillis < nextSunriseMillis -> { // 夜の刻 (日没後)
+        targetTimeMillis >= sunsetMillis && targetTimeMillis < nextSunriseMillis -> { // 夜の刻 (日没後), 日付変更前
             Log.d("getKoshikiTimeFor", "--- Nighttime (after sunset) ---")
             val nightDuration = nextSunriseMillis - sunsetMillis
             Log.d("getKoshikiTimeFor", "nightDuration: $nightDuration (${formatMillisToHHMMSS(nightDuration)})")
@@ -162,7 +172,7 @@ class SunriseWidgetAlarmUtilsTest {
             Log.d("getKoshikiTimeFor", "kokuIndex: $kokuIndex")
             KoshikiTime(nightEto[etoIndex], kokuCount[kokuIndex])
         }
-        targetTimeMillis < sunriseMillis && targetTimeMillis >= previousSunsetMillis -> { // 夜の刻 (日の出前)
+        targetTimeMillis < sunriseMillis && targetTimeMillis >= previousSunsetMillis -> { // 夜の刻 (日の出前)、日付変更後
             Log.d("getKoshikiTimeFor", "--- Nighttime (before sunrise) ---")
             val nightDuration = sunriseMillis - previousSunsetMillis
             Log.d("getKoshikiTimeFor", "nightDuration: $nightDuration (${formatMillisToHHMMSS(nightDuration)})")
@@ -187,50 +197,6 @@ class SunriseWidgetAlarmUtilsTest {
         }
     }
 }
-    // private fun getKoshikiTimeFor(
-    //     targetTimeMillis: Long,
-    //     sunriseMillis: Long,
-    //     sunsetMillis: Long,
-    //     nextSunriseMillis: Long,
-    //     previousSunsetMillis: Long
-    // ): KoshikiTime? {
-    //     return when {
-    //         targetTimeMillis >= sunriseMillis && targetTimeMillis < sunsetMillis -> { // 昼の刻
-    //             val dayDuration = sunsetMillis - sunriseMillis
-    //             if (dayDuration <= 0) return null
-    //             val timeInDay = targetTimeMillis - sunriseMillis
-    //             val etoSegmentDuration = dayDuration / 6.0
-    //             val etoIndex = (timeInDay / etoSegmentDuration).toInt().coerceAtMost(5)
-    //             val kokuSegmentDuration = etoSegmentDuration / 4.0
-    //             val timeInEtoSegment = timeInDay - (etoIndex * etoSegmentDuration)
-    //             val kokuIndex = (timeInEtoSegment / kokuSegmentDuration).toInt().coerceAtMost(3)
-    //             KoshikiTime(dayEto[etoIndex], kokuCount[kokuIndex])
-    //         }
-    //         targetTimeMillis >= sunsetMillis && targetTimeMillis < nextSunriseMillis -> { // 夜の刻 (日没後)
-    //             val nightDuration = nextSunriseMillis - sunsetMillis
-    //             if (nightDuration <= 0) return null
-    //             val timeInNight = targetTimeMillis - sunsetMillis
-    //             val etoSegmentDuration = nightDuration / 6.0
-    //             val etoIndex = (timeInNight / etoSegmentDuration).toInt().coerceAtMost(5)
-    //             val kokuSegmentDuration = etoSegmentDuration / 4.0
-    //             val timeInEtoSegment = timeInNight - (etoIndex * etoSegmentDuration)
-    //             val kokuIndex = (timeInEtoSegment / kokuSegmentDuration).toInt().coerceAtMost(3)
-    //             KoshikiTime(nightEto[etoIndex], kokuCount[kokuIndex])
-    //         }
-    //         targetTimeMillis < sunriseMillis && targetTimeMillis >= previousSunsetMillis -> { // 夜の刻 (日の出前)
-    //             val nightDuration = sunriseMillis - previousSunsetMillis
-    //             if (nightDuration <= 0) return null
-    //             val timeInNight = targetTimeMillis - previousSunsetMillis
-    //             val etoSegmentDuration = nightDuration / 6.0
-    //             val etoIndex = (timeInNight / etoSegmentDuration).toInt().coerceAtMost(5)
-    //             val kokuSegmentDuration = etoSegmentDuration / 4.0
-    //             val timeInEtoSegment = timeInNight - (etoIndex * etoSegmentDuration)
-    //             val kokuIndex = (timeInEtoSegment / kokuSegmentDuration).toInt().coerceAtMost(3)
-    //             KoshikiTime(nightEto[etoIndex], kokuCount[kokuIndex])
-    //         }
-    //         else -> null // 範囲外
-    //     }
-    // }
 
 
     fun koshikiTimeBoundaryTestData(): List<Array<Any?>> {
@@ -238,7 +204,6 @@ class SunriseWidgetAlarmUtilsTest {
         val testLocations = listOf(TestLocation.TOKYO, TestLocation.LONDON)
         val baseCal = testBaseCalendar.clone() as Calendar
         val sdfWithTimezone = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss zzzz", Locale.getDefault())
-// ba   // seCal の日時とタイムゾーンをログに出力
         Log.d("koshikiTimeBoundaryTestData", "baseCal: ${sdfWithTimezone.format(baseCal.time)}")
 
         // これらのリストはテストデータ生成にのみ使用するので、companion object内にあっても良い
@@ -493,57 +458,92 @@ class SunriseWidgetAlarmUtilsTest {
         val allTestData = koshikiTimeBoundaryTestData()
         for (testArgs in allTestData) {
             val location = testArgs[0] as TestLocation
-            val currentTimeMillis = testArgs[1] as Long
+            val pseudCurrentTimeMillis = testArgs[1] as Long
             val sunriseMillis = testArgs[2] as Long
             val sunsetMillis = testArgs[3] as Long
             val nextSunriseMillis = testArgs[4] as Long
             val prevSunsetMillis = testArgs[5] as Long
             val expectedKoshikiTime = testArgs[6] as KoshikiTime
             val expectedNextUpdateTimeFromTestData = testArgs[7] as Long
+//            val expectedKokuDuration = testArgs[8] as Long
             val expectedKokuDuration = testArgs[8] as Double
 
-            val testCaseName = "Location: ${location.id}, Time: ${Date(currentTimeMillis)}, Expected Koshiki: $expectedKoshikiTime"
-            Log.d("testKoshikiTime_Boundaries_NextUpdate_And_Duration", "Location: ${location.id}, Expected Time: ${Date(currentTimeMillis)}, Expected Koshiki: $expectedKoshikiTime")
             val sdf = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
+            Log.d("Pseud CurrentSystemTime", "Current system time (UTC): $pseudCurrentTimeMillis ms ${sdf.format(Date(pseudCurrentTimeMillis))}")
+            //
+            val testCaseName = "Location: ${location.id}, Time: ${Date(pseudCurrentTimeMillis)}, Expected Koshiki: $expectedKoshikiTime"
+            Log.d("testKoshikiTime_Boundaries_NextUpdate_And_Duration", "Location: ${location.id}, Expected Time: ${Date(pseudCurrentTimeMillis)}, Expected Koshiki: $expectedKoshikiTime")
             Log.d(
                 "testKoshikiTime_Boundaries_NextUpdate_And_Duration",
                 "Location: ${location.id}, " +
-                        "Time: ${sdf.format(Date(currentTimeMillis))}, " +
+                        "Time: ${sdf.format(Date(pseudCurrentTimeMillis))}, " +
                         "Sunrise: ${sdf.format(Date(sunriseMillis))}, " +
                         "Sunset: ${sdf.format(Date(sunsetMillis))}, " +
                         "Next Sunrise: ${sdf.format(Date(nextSunriseMillis))}, " +
                         "Previous Sunset: ${sdf.format(Date(prevSunsetMillis))}, " +
                         "Expected Koshiki: $expectedKoshikiTime"
             )
-            val actualKoshikiTime = getKoshikiTimeFor(currentTimeMillis, sunriseMillis, sunsetMillis, nextSunriseMillis, prevSunsetMillis)
-            Log.d("actualKoshikiTime", "Location: ${location.id}, Time: ${sdf.format(Date(currentTimeMillis))}, Sunrise: ${sdf.format(Date(sunriseMillis))}, Sunset: ${sdf.format(Date(sunsetMillis))}")
+            val actualKoshikiTime = getKoshikiTimeFor(pseudCurrentTimeMillis, sunriseMillis, sunsetMillis, nextSunriseMillis, prevSunsetMillis)
+            Log.d("actualKoshikiTime", "Location: ${location.id}, Time: ${sdf.format(Date(pseudCurrentTimeMillis))}, Sunrise: ${sdf.format(Date(sunriseMillis))}, Sunset: ${sdf.format(Date(sunsetMillis))}")
             Log.d("actualKoshikiTime", "actualKoshikiTime: $actualKoshikiTime")
             assertEquals("Koshiki time mismatch for $testCaseName", expectedKoshikiTime, actualKoshikiTime)
 
-            val actualNextUpdateTime = calculateNextUpdateTime(location.latitude, location.longitude, sunriseMillis, sunsetMillis)
-
+            val actualNextUpdateTime = calculateNextUpdateTime(pseudCurrentTimeMillis, location.latitude, location.longitude, sunriseMillis, sunsetMillis)
             val toleranceMillis = 1000L
             assertTrue(
-                "Next update time mismatch for $testCaseName. " +
-                        "Expected: ${Date(expectedNextUpdateTimeFromTestData)} (${expectedNextUpdateTimeFromTestData}ms), " +
-                        "Actual: ${Date(actualNextUpdateTime)} (${actualNextUpdateTime}ms). Diff: ${abs(expectedNextUpdateTimeFromTestData - actualNextUpdateTime)}ms",
+                "Next update time mismatch for $testCaseName.\n" +
+                        "Expected: ${Date(expectedNextUpdateTimeFromTestData)} (${expectedNextUpdateTimeFromTestData}ms)\n" +
+                        "Actual: ${Date(actualNextUpdateTime)} (${actualNextUpdateTime}ms)\n" +
+                        "Diff: ${abs(expectedNextUpdateTimeFromTestData - actualNextUpdateTime)}ms " +
+                        "(${formatMillisToHHMMSS(abs(expectedNextUpdateTimeFromTestData - actualNextUpdateTime))})",
                 abs(expectedNextUpdateTimeFromTestData - actualNextUpdateTime) <= toleranceMillis
             )
 
-            val currentKokuStartTime = currentTimeMillis -1
+            val currentKokuStartTime = pseudCurrentTimeMillis -1
             val actualKokuDuration = actualNextUpdateTime - currentKokuStartTime
-
+            //
+//            val durationTolerance = expectedKokuDuration * 0.01
             val durationTolerance = expectedKokuDuration * 0.01
+            val tolerance = durationTolerance.coerceAtLeast(50.0)
+            val difference = abs(actualKokuDuration - expectedKokuDuration)
+
+            // デバッグログを追加
+            Log.d("Koku duration mismatch test", """
+            [DEBUG] Koku Duration Analysis for $testCaseName:
+            - Current Koku Start Time: $currentKokuStartTime (${Date(currentKokuStartTime)})
+            - Actual Next Update Time: $actualNextUpdateTime (${Date(actualNextUpdateTime)})
+            - Actual Koku Duration: $actualKokuDuration ms (${formatMillisToHHMMSS(actualKokuDuration)})
+            - Expected Koku Duration: $expectedKokuDuration ms (${doubleFormatMillisToHHMMSS(expectedKokuDuration)})
+            - Duration Tolerance: $durationTolerance ms (${doubleFormatMillisToHHMMSS(durationTolerance)})
+            - Applied Tolerance (min 50ms): $tolerance ms (${doubleFormatMillisToHHMMSS(tolerance)})
+            - Actual Difference: $difference ms (${doubleFormatMillisToHHMMSS(difference)})
+            - Tolerance Check: ${difference <= tolerance}
+            - Sunrise: ${Date(sunriseMillis)}
+            - Sunset: ${Date(sunsetMillis)}
+            - Next Sunrise: ${Date(nextSunriseMillis)}
+            - Previous Sunset: ${Date(prevSunsetMillis)}
+            """.trimIndent())
+
             assertTrue("Koku duration mismatch for $testCaseName. " +
                     "Expected duration: ${expectedKokuDuration}ms, Actual duration: ${actualKokuDuration}ms. " +
-                    "Sunrise: ${Date(sunriseMillis)}, Sunset: ${Date(sunsetMillis)}, NextSunrise: ${Date(nextSunriseMillis)}, PrevSunset: ${Date(prevSunsetMillis)}",
-                abs(actualKokuDuration - expectedKokuDuration) <= durationTolerance.coerceAtLeast(50.0)
+                    "Difference: ${difference}ms, Allowed tolerance: ${tolerance}ms. " +
+                    "Sunrise: ${Date(sunriseMillis)}, Sunset: ${Date(sunsetMillis)}, " +
+                    "NextSunrise: ${Date(nextSunriseMillis)}, PrevSunset: ${Date(prevSunsetMillis)}",
+                difference <= tolerance
             )
+            //
+
+//            val durationTolerance = expectedKokuDuration * 0.01
+//            assertTrue("Koku duration mismatch for $testCaseName. " +
+//                    "Expected duration: ${expectedKokuDuration}ms, Actual duration: ${actualKokuDuration}ms. " +
+//                    "Sunrise: ${Date(sunriseMillis)}, Sunset: ${Date(sunsetMillis)}, NextSunrise: ${Date(nextSunriseMillis)}, PrevSunset: ${Date(prevSunsetMillis)}",
+//                abs(actualKokuDuration - expectedKokuDuration) <= durationTolerance.coerceAtLeast(50.0)
+//            )
 
             val kokuPeriod = KokuPeriod(expectedKoshikiTime, currentKokuStartTime, actualNextUpdateTime, actualKokuDuration)
             fullDayKokuLog.computeIfAbsent(location.id) { mutableListOf() }.add(kokuPeriod)
 
-            if (currentTimeMillis == sunriseMillis + TimeUnit.MINUTES.toMillis(1) && dayEto.isNotEmpty() && kokuCount.size > 1) { // Ensure kokuCount has at least two elements
+            if (pseudCurrentTimeMillis == sunriseMillis + TimeUnit.MINUTES.toMillis(1) && dayEto.isNotEmpty() && kokuCount.size > 1) { // Ensure kokuCount has at least two elements
                 val expectedUHitotsu = KoshikiTime(dayEto[0], kokuCount[0])
                 assertEquals("日の出後1分は「${dayEto[0]}${kokuCount[0]}」であるべき ($testCaseName)", expectedUHitotsu, actualKoshikiTime)
 
@@ -565,18 +565,20 @@ class SunriseWidgetAlarmUtilsTest {
     @Test
     fun testGetCoordinates() {
         val appWidgetId = 1
-        val expectedLat = 35.0f
-        val expectedLon = 139.0f
-        // Access properties/constants via the object name
-        editor.putFloat(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, expectedLat)
-        editor.putFloat(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, expectedLon)
+        val expectedLat = 35.0
+        val expectedLon = 139.0
+
+        // 保存時に`String`として保存
+        editor.putString(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, expectedLat.toString())
+        editor.putString(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, expectedLon.toString())
         editor.commit()
 
-        // Call method on the object
+        // メソッドで取得し、`Double`として扱う
         val (lat, lon) = SunriseWidgetAlarmUtils.getCoordinates(context, appWidgetId)
 
-        assertEquals(expectedLat.toDouble(), lat, 0.00001)
-        assertEquals(expectedLon.toDouble(), lon, 0.00001)
+        // 精度を考慮して比較
+        assertEquals(expectedLat, lat, 0.00001)
+        assertEquals(expectedLon, lon, 0.00001)
     }
 
     @Test
@@ -587,12 +589,21 @@ class SunriseWidgetAlarmUtilsTest {
 
         // Call method on the object
         SunriseWidgetAlarmUtils.validateAndSaveCoordinates(context, appWidgetId, lat, lon)
+//        val savedLat = sharedPreferences.getString(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, )
+////        val savedLon = sharedPreferences.getFloat(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, 0f)
+////
+////        assertEquals(lat.toFloat(), savedLat, 0.001f)
+////        assertEquals(lon.toFloat(), savedLon, 0.001f)
+////        val savedLat = getLatitude(sharedPreferences, appWidgetId)
+////        val savedLon = getLongitude(sharedPreferences, appWidgetId)
+//
+//        assertEquals(lat, savedLat)
+//        assertEquals(lon, savedLon, 0.001)
+        val savedLat = sharedPreferences.getString(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, "0.0")!!.toDouble()
+        val savedLon = sharedPreferences.getString(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, "0.0")!!.toDouble()
 
-        val savedLat = sharedPreferences.getFloat(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, 0f)
-        val savedLon = sharedPreferences.getFloat(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, 0f)
-
-        assertEquals(lat.toFloat(), savedLat, 0.001f)
-        assertEquals(lon.toFloat(), savedLon, 0.001f)
+        assertEquals(lat, savedLat, 0.001)
+        assertEquals(lon, savedLon, 0.001)
     }
 
     @Test
@@ -620,8 +631,8 @@ class SunriseWidgetAlarmUtilsTest {
         val appWidgetId = 1
         val testCal = testBaseCalendar.clone() as Calendar
 
-        editor.putFloat(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.latitude.toFloat())
-        editor.putFloat(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.longitude.toFloat())
+        editor.putString(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.latitude.toString())
+        editor.putString(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.longitude.toString())
         editor.commit()
 
         val loc = Location(TestLocation.TOKYO.latitude, TestLocation.TOKYO.longitude)
@@ -630,7 +641,7 @@ class SunriseWidgetAlarmUtilsTest {
         val expectedSunrise = calculator.getOfficialSunriseCalendarForDate(testCal.clone() as Calendar)
         Log.d("testGetSunriseSunsetTime_noCache", "expectedSunrise: $expectedSunrise at: $loc - $tz")
         // Call method on the object
-        val actualSunrise = SunriseWidgetAlarmUtils.getSunriseSunsetTime(sharedPreferences, appWidgetId, true, false)
+        val actualSunrise = SunriseWidgetAlarmUtils.getSunriseSunsetTime(testCal, sharedPreferences, appWidgetId, true, false)
 
         assertEquals(expectedSunrise.timeInMillis, actualSunrise?.timeInMillis)
 
@@ -655,7 +666,7 @@ class SunriseWidgetAlarmUtilsTest {
         editor.commit()
 
         // Call method on the object
-        val actualSunrise = SunriseWidgetAlarmUtils.getSunriseSunsetTime(sharedPreferences, appWidgetId, true, false)
+        val actualSunrise = SunriseWidgetAlarmUtils.getSunriseSunsetTime(testCal, sharedPreferences, appWidgetId, true, false)
 
         assertEquals(expectedSunriseMillis, actualSunrise?.timeInMillis)
 
@@ -675,8 +686,8 @@ class SunriseWidgetAlarmUtilsTest {
         val timeKey = SunriseWidgetAlarmUtils.PREF_SUNRISE_TIME_PREFIX + appWidgetId
         editor.putString(timeKey + "_date", dateStr)
         editor.putLong(timeKey + "_millis", cachedSunriseMillis)
-        editor.putFloat(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.latitude.toFloat())
-        editor.putFloat(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.longitude.toFloat())
+        editor.putString(SunriseWidgetAlarmUtils.PREF_LATITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.latitude.toString())
+        editor.putString(SunriseWidgetAlarmUtils.PREF_LONGITUDE_PREFIX + appWidgetId, TestLocation.TOKYO.longitude.toString())
         editor.commit()
 
         val loc = Location(TestLocation.TOKYO.latitude, TestLocation.TOKYO.longitude)
@@ -685,7 +696,7 @@ class SunriseWidgetAlarmUtilsTest {
         val expectedRecalculatedSunrise = calculator.getOfficialSunriseCalendarForDate(testCal.clone() as Calendar)
 
         // Call method on the object
-        val actualSunrise = SunriseWidgetAlarmUtils.getSunriseSunsetTime(sharedPreferences, appWidgetId, true, true)
+        val actualSunrise = SunriseWidgetAlarmUtils.getSunriseSunsetTime(testCal, sharedPreferences, appWidgetId, true, true)
 
         assertEquals(expectedRecalculatedSunrise.timeInMillis, actualSunrise?.timeInMillis)
 

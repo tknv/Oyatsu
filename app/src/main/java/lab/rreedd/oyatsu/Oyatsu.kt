@@ -20,8 +20,8 @@ private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
 private const val PREF_LATITUDE_PREFIX = "latitude_"       // 例: latitude_123
 private const val PREF_LONGITUDE_PREFIX = "longitude_"      // 例: longitude_123
 private const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE" 
-private const val DEFAULT_LATITUDE = 35.6895 // デフォルト緯度（東京駅） - 位置情報が取れない場合に使用
-private const val DEFAULT_LONGITUDE = 139.6917 // デフォルト経度（東京駅）
+private const val DEFAULT_LATITUDE = 35.681444600642514 // デフォルト緯度（東京駅） - 位置情報が取れない場合に使用
+private const val DEFAULT_LONGITUDE = 139.76579265965165 // デフォルト経度（東京駅）
 
 class Oyatsu : AppWidgetProvider() {
     // 和時計のための定数
@@ -45,16 +45,14 @@ class Oyatsu : AppWidgetProvider() {
         appWidgetIds.forEach { appWidgetId ->
             // 現在の緯度経度を更新
             val views = RemoteViews(context.packageName, R.layout.widget_oyatsu)
+            val today = Calendar.getInstance()
             SunriseWidgetAlarmUtils.updateWidgetCoordinates(context, appWidgetId, views)
             proceedWithWidgetUpdate(
+                today,
                 context,
                 appWidgetId,
                 forceSunriseRecalc = true
             )
-            // // 日の出情報を使ってまずは表示を更新
-            // updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true)
-            // // 次の更新をスケジュールする (これもACTION_ALARM_UPDATEで処理するため、ここでは単にスケジュール設定)
-            // SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
         }
     }
 
@@ -66,12 +64,10 @@ class Oyatsu : AppWidgetProvider() {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val thisAppWidget = ComponentName(context.packageName, javaClass.name)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+        val today = Calendar.getInstance()
         appWidgetIds.forEach { appWidgetId ->
             // Ensure initial update and schedule
-            proceedWithWidgetUpdate(context, appWidgetId, forceSunriseRecalc = true)
-            //     updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // forceRecalc for initial setup
-            //     SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
-            // }
+            proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
         }
     }
 
@@ -111,7 +107,7 @@ class Oyatsu : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         Log.d(TAG, "onReceive: action = $action from intent: $intent")
-
+        val today = Calendar.getInstance()
         // Handle widget update actions, including those from LocationInputActivity
         if (AppWidgetManager.ACTION_APPWIDGET_UPDATE == action) {
             val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
@@ -122,8 +118,8 @@ class Oyatsu : AppWidgetProvider() {
                 // Explicitly update based on potentially new coordinates
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 appWidgetIds.forEach { appWidgetId ->
-                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // Force recalc after location change
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, true) // Force recalc after location change
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
                 }
                 return // Consume this action
             }
@@ -141,8 +137,8 @@ class Oyatsu : AppWidgetProvider() {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                     Log.d(TAG, "Received custom alarm for widget ID: $appWidgetId (likely from SunriseWidgetAlarmUtils)")
                     val appWidgetManager = AppWidgetManager.getInstance(context)
-                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, false) // Regular update
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId) // Reschedule
+                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, false) // Regular update
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId) // Reschedule
                 } else {
                     Log.w(TAG, "Received alarm intent without valid widget ID.")
                 }
@@ -155,8 +151,22 @@ class Oyatsu : AppWidgetProvider() {
                 appWidgetIds.forEach { appWidgetId ->
                     Log.d(TAG, "Processing widget ID: $appWidgetId due to $action")
                     // For these system events, recalculate and reschedule
-                    updateAppWidgetInternal(context, appWidgetManager, appWidgetId, true) // forceRecalc
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, true) // forceRecalc
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+                }
+            }
+            // Add a custom action for location updates from LocationInputActivity
+            LocationInputActivity.ACTION_LOCATION_UPDATED -> {
+                val appWidgetId = intent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID
+                )
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    Log.d(TAG, "Received location updated for widget ID: $appWidgetId. Forcing recalculation.")
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, true) // Force recalc
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+                    logAllJapaneseTimesForToday(context, appWidgetId) // Log all times
                 }
             }
         }
@@ -170,6 +180,7 @@ class Oyatsu : AppWidgetProvider() {
      * @param forceRecalc trueの場合、保存された値に関わらず日の出入り時刻を再計算する
      */
     private fun updateAppWidgetInternal(
+        pseudToday: Calendar,
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
@@ -179,9 +190,22 @@ class Oyatsu : AppWidgetProvider() {
         val views = RemoteViews(context.packageName, R.layout.widget_oyatsu)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         // Load latitude and longitude
-        val latitude = prefs.getFloat(PREF_LATITUDE_PREFIX + appWidgetId, DEFAULT_LATITUDE.toFloat()).toDouble()
-        val longitude = prefs.getFloat(PREF_LONGITUDE_PREFIX + appWidgetId, DEFAULT_LONGITUDE.toFloat()).toDouble()
+        val latitudeString = prefs.getString(PREF_LATITUDE_PREFIX + appWidgetId, null)
+        val longitudeString = prefs.getString(PREF_LONGITUDE_PREFIX + appWidgetId, null)
 
+        val latitude = try {
+            latitudeString?.toDouble() ?: DEFAULT_LATITUDE
+        } catch (e: NumberFormatException) {
+            Log.w(TAG, "Invalid latitude format for widget $appWidgetId: $latitudeString", e)
+            DEFAULT_LATITUDE
+        }
+
+        val longitude = try {
+            longitudeString?.toDouble() ?: DEFAULT_LONGITUDE
+        } catch (e: NumberFormatException) {
+            Log.w(TAG, "Invalid longitude format for widget $appWidgetId: $longitudeString", e)
+            DEFAULT_LONGITUDE
+        }
         // Check if coordinates are default and prompt user if so (only if not already prompted recently)
         val isDefaultLocation = (latitude == DEFAULT_LATITUDE && longitude == DEFAULT_LONGITUDE)
         val locationSet = prefs.contains(PREF_LATITUDE_PREFIX + appWidgetId)
@@ -198,8 +222,8 @@ class Oyatsu : AppWidgetProvider() {
 
         // --- 2. 日の出・日の入り時刻と和時計に基づく時刻の計算・表示 ---
         // 日の出・日の入り時刻を取得
-        val todaySunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(prefs, appWidgetId, true, forceRecalc) // 通常は再計算不要
-        val todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(prefs, appWidgetId, false, forceRecalc) // 通常は再計算不要
+        val todaySunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(pseudToday, prefs, appWidgetId, true, forceRecalc) // 通常は再計算不要
+        val todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(pseudToday, prefs, appWidgetId, false, forceRecalc) // 通常は再計算不要
         // sunTime変数をスコープ外でも使えるよう宣言
         var sunTime = ""
         val japaneseTimeText: String
@@ -216,28 +240,6 @@ class Oyatsu : AppWidgetProvider() {
             // Potentially schedule a quick retry if it was due to a transient issue, though less likely without GPS
             // SunriseWidgetAlarmUtils.scheduleQuickUpdate(context, appWidgetId) // If you implement this
         }
-        // val japaneseTimeText: String = if (todaySunriseTime != null && todaySunsetTime != null) {
-        //     val resultPair = calculateJapaneseTime(todaySunriseTime, todaySunsetTime) // Pair を取得
-        //     val calculatedText = resultPair.first // Pair の最初の値を取得
-        //     sunTime = resultPair.second
-        //     Log.d(TAG, "Widget $appWidgetId: $calculatedText (sunTime: $sunTime)") // 計算結果と sunTime をログ出力
-        //     // if式の「結果」として calculatedText (String型) を返す
-        //     calculatedText
-        // } else {
-        //     // 日の出・日の入り時刻の計算が失敗した場合
-        //     Log.w(TAG, "Widget $appWidgetId: Failed to calculate sunrise/sunset time.")
-        //     // 強制的にデフォルト位置情報を保存して再試行
-        //     saveDefaultLocation(context, appWidgetId)
-        //     // 一度だけ再試行（無限ループ防止）
-        //     if (!forceRecalc) {
-        //         Log.d(TAG, "Retrying sunrise/sunset calculation with default location.")
-        //         // 次回の更新をスケジュールする（短い間隔で）
-        //         scheduleQuickUpdate(context, appWidgetId)
-        //     }
-        //     // else式の「結果」としてデフォルトメッセージ (String型) を返す
-        //     sunTime = "計算中..."
-        //     "時刻計算中..."
-        // }
 
         // widget_oyatsu.xml で表示する項目
         views.setTextViewText(R.id.text_japanese_year_month, "$japaneseYear $japaneseMonthName")
@@ -247,21 +249,6 @@ class Oyatsu : AppWidgetProvider() {
             "$japaneseTimeText $solarTerm $sixtyKanjiCycle"
         )
         views.setTextViewText(R.id.text_sun_time, sunTime)
-
-        // // --- 3. Setup widget tap to open LocationInputActivity ---
-        // val intent = Intent(context, LocationInputActivity::class.java).apply {
-        //     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        //     // Add FLAG_ACTIVITY_NEW_TASK if launching from a BroadcastReceiver context
-        //     // PendingIntent will often handle this, but good practice if constructing intent directly for startActivity
-        //     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // Clears previous instances
-        // }
-        // val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        //     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        // } else {
-        //     PendingIntent.FLAG_UPDATE_CURRENT
-        // }
-        // val pendingIntent = PendingIntent.getActivity(context, appWidgetId /* unique request code per widget */, intent, pendingIntentFlags)
-        // views.setOnClickPendingIntent(R.id.widget_root_layout, pendingIntent) // Assume your root layout ID is widget_root_layout
 
         // --- ウィジェットを更新 ---
         try {
@@ -353,15 +340,16 @@ class Oyatsu : AppWidgetProvider() {
      * 位置情報処理後のウィジェット更新とスケジュール処理
      */
     fun proceedWithWidgetUpdate(
+        pseudToday: Calendar,
         context: Context,
         appWidgetId: Int,
         forceSunriseRecalc: Boolean
     ) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         // ウィジェットを更新
-        updateAppWidgetInternal(context, appWidgetManager, appWidgetId, forceSunriseRecalc)
+        updateAppWidgetInternal(pseudToday, context, appWidgetManager, appWidgetId, forceSunriseRecalc)
         // 次の更新をスケジュール
-        SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+        SunriseWidgetAlarmUtils.scheduleNextUpdate(pseudToday, context, appWidgetId)
     }
 
     // --- AlarmManager 関連 ---
@@ -405,6 +393,48 @@ class Oyatsu : AppWidgetProvider() {
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel() // PendingIntent自体もキャンセル
         Log.i(TAG, "Canceled alarm for widget ID: $appWidgetId")
+    }
+
+    /**
+     * ロケーションまたは時刻設定の変更があった場合に、その日一日の calculateJapaneseTime を全てログに表示する
+     */
+    private fun logAllJapaneseTimesForToday(context: Context, appWidgetId: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val today = Calendar.getInstance()
+
+        val sunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(today, prefs, appWidgetId, true, true)
+        val sunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(today, prefs, appWidgetId, false, true)
+
+        if (sunriseTime == null || sunsetTime == null) {
+            Log.e(TAG, "Failed to get sunrise/sunset times for logging all Japanese times.")
+            return
+        }
+
+        Log.d(TAG, "--- Logging all Japanese times for widget ID: $appWidgetId (Today: ${SimpleDateFormat("yyyy/MM/dd", Locale.JAPAN).format(today.time)}) ---")
+
+        val tempCalendar = Calendar.getInstance().apply {
+            set(Calendar.YEAR, today.get(Calendar.YEAR))
+            set(Calendar.MONTH, today.get(Calendar.MONTH))
+            set(Calendar.DAY_OF_MONTH, today.get(Calendar.DAY_OF_MONTH))
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        for (hour in 0 until 24) {
+            for (minute in 0 until 60) {
+                tempCalendar.set(Calendar.HOUR_OF_DAY, hour)
+                tempCalendar.set(Calendar.MINUTE, minute)
+
+                val originalNow = Calendar.getInstance() // Store original now
+                Calendar.getInstance().timeInMillis = tempCalendar.timeInMillis // Temporarily set 'now' for calculation
+
+                val (japaneseTime, sunInfo) = calculateJapaneseTime(sunriseTime, sunsetTime)
+                Log.d(TAG, "Time: ${SimpleDateFormat("HH:mm", Locale.JAPAN).format(tempCalendar.time)} -> Japanese: $japaneseTime, Sun: $sunInfo")
+
+                Calendar.getInstance().timeInMillis = originalNow.timeInMillis // Restore original now
+            }
+        }
+        Log.d(TAG, "--- End of Japanese times log ---")
     }
 
     /** 和風月名を取得 */
@@ -557,8 +587,9 @@ class ScreenOnReceiver : BroadcastReceiver() {
             val appWidgetIds = AppWidgetManager.getInstance(context).getAppWidgetIds(
                 ComponentName(context, Oyatsu::class.java)
             )
+            val today = Calendar.getInstance()
             appWidgetIds.forEach { appWidgetId ->
-                SunriseWidgetAlarmUtils.scheduleNextUpdate(context, appWidgetId)
+                SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
             }
         }
     }
