@@ -62,13 +62,4 @@
         android:gravity="center"
         android:text="日出05:06-日入19:31" />
 
-    <!--    <TextView-->
-    <!--        android:id="@+id/text_sixty_kanji_cycle"-->
-    <!--        android:layout_width="match_parent"-->
-    <!--        android:layout_height="wrap_content"-->
-    <!--        android:textColor="@android:color/white"-->
-    <!--        android:textSize="16sp"-->
-    <!--        android:gravity="center"-->
-    <!--        android:text="甲子" />-->
-
 </LinearLayout>

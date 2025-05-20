@@ -14,12 +14,13 @@ import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import android.net.Uri
 
 private const val TAG = "OyatsuWidget"
 private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
 private const val PREF_LATITUDE_PREFIX = "latitude_"       // 例: latitude_123
 private const val PREF_LONGITUDE_PREFIX = "longitude_"      // 例: longitude_123
-private const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE" 
+private const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE"
 private const val DEFAULT_LATITUDE = 35.681444600642514 // デフォルト緯度（東京駅） - 位置情報が取れない場合に使用
 private const val DEFAULT_LONGITUDE = 139.76579265965165 // デフォルト経度（東京駅）
 
@@ -39,35 +40,28 @@ class Oyatsu : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         Log.d(TAG, "onUpdate called for ids: ${appWidgetIds.joinToString()}")
-        // onUpdateはシステムから様々なタイミングで呼ばれるため、ここで位置情報取得をトリガーすると頻繁になりすぎる可能性がある。
-        // 通常はAlarmManagerからのカスタムアクション(ACTION_ALARM_UPDATE)で位置情報取得と更新を行うのが良い。
-        // ここでは、念のため位置情報がない場合に取得を試みるロジックは残しておく。
         appWidgetIds.forEach { appWidgetId ->
-            // 現在の緯度経度を更新
-            val views = RemoteViews(context.packageName, R.layout.widget_oyatsu)
             val today = Calendar.getInstance()
-            SunriseWidgetAlarmUtils.updateWidgetCoordinates(context, appWidgetId, views)
-            proceedWithWidgetUpdate(
+            updateAppWidgetInternal(
                 today,
                 context,
+                appWidgetManager,
                 appWidgetId,
-                forceSunriseRecalc = true
+                forceRecalc = false // onUpdateでは通常は再計算不要
             )
+            SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
         }
     }
 
     override fun onEnabled(context: Context) {
         Log.d(TAG, "onEnabled called")
-        // When the first widget is added, you might want to prompt for location
-        // or ensure default is set up.
-        // For now, existing widgets will update with stored/default location.
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val thisAppWidget = ComponentName(context.packageName, javaClass.name)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
         val today = Calendar.getInstance()
         appWidgetIds.forEach { appWidgetId ->
-            // Ensure initial update and schedule
             proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+            logAllJapaneseTimesForToday(context, appWidgetId) // ログ出力
         }
     }
 
@@ -76,8 +70,7 @@ class Oyatsu : AppWidgetProvider() {
      */
     override fun onDisabled(context: Context) {
         Log.d(TAG, "onDisabled called")
-        // ここで、まだキャンセルされていないすべてのアラームをキャンセルすることも考慮できるが、
-        // onDeleted で個別にキャンセルするのがより確実。
+        // No specific action needed here beyond what onDeleted handles for individual widgets.
     }
 
     /**
@@ -86,16 +79,15 @@ class Oyatsu : AppWidgetProvider() {
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         Log.d(TAG, "onDeleted called for ids: ${appWidgetIds.joinToString()}")
         appWidgetIds.forEach { appWidgetId ->
-            // 削除されたウィジェットに関連付けられたアラームをキャンセル
-            cancelAlarm(context, appWidgetId)
+            SunriseWidgetAlarmUtils.cancelAlarm(context, appWidgetId)
             // 関連する SharedPreferences データを削除
-//            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
-//                remove(PREF_SUNRISE_TIME_PREFIX + appWidgetId + "_millis")
-//                remove(PREF_SUNRISE_TIME_PREFIX + appWidgetId + "_date")
-//                remove(PREF_SUNSET_TIME_PREFIX + appWidgetId + "_millis")  // 日の入り時刻も削除
-//                remove(PREF_SUNSET_TIME_PREFIX + appWidgetId + "_date")    // 日の入り日付も削除
+//            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().apply {
 //                remove(PREF_LATITUDE_PREFIX + appWidgetId)
 //                remove(PREF_LONGITUDE_PREFIX + appWidgetId)
+//                remove(SunriseWidgetAlarmUtils.PREF_SUNRISE_TIME_PREFIX + appWidgetId)
+//                remove(SunriseWidgetAlarmUtils.PREF_SUNSET_TIME_PREFIX + appWidgetId)
+//                remove(SunriseWidgetAlarmUtils.PREF_LAST_CALC_DATE_PREFIX + appWidgetId) // 追加
+//                apply()
 //            }
 //            Log.i(TAG, "Cleaned up data for deleted widget ID: $appWidgetId")
         }
@@ -106,74 +98,83 @@ class Oyatsu : AppWidgetProvider() {
      */
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        Log.d(TAG, "onReceive: action = $action from intent: $intent")
+        val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         val today = Calendar.getInstance()
+
+        Log.d(TAG, "onReceive: action = $action, appWidgetId = $appWidgetId")
         // Handle widget update actions, including those from LocationInputActivity
         if (AppWidgetManager.ACTION_APPWIDGET_UPDATE == action) {
             val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
             if (appWidgetIds != null) {
-                 Log.d(TAG, "Received ACTION_APPWIDGET_UPDATE for IDs: ${appWidgetIds.joinToString()}")
+                Log.d(TAG, "Received ACTION_APPWIDGET_UPDATE for IDs: ${appWidgetIds.joinToString()}")
                 // This will call our onUpdate method
                 super.onReceive(context, intent) // Important to let the base class handle standard updates
                 // Explicitly update based on potentially new coordinates
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 appWidgetIds.forEach { appWidgetId ->
-                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, true) // Force recalc after location change
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
                 }
                 return // Consume this action
             }
         } else {
-             super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
+            super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
         }
-
 
         when (action) {
             ACTION_ALARM_UPDATE -> {
-                val appWidgetId = intent.getIntExtra(
-                    AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    AppWidgetManager.INVALID_APPWIDGET_ID
-                )
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                     Log.d(TAG, "Received custom alarm for widget ID: $appWidgetId (likely from SunriseWidgetAlarmUtils)")
                     val appWidgetManager = AppWidgetManager.getInstance(context)
                     updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, false) // Regular update
                     SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId) // Reschedule
                 } else {
-                    Log.w(TAG, "Received alarm intent without valid widget ID.")
+                    Log.w(TAG, "Received alarm intent without valid widget ID, updating all.")
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    val thisAppWidget = ComponentName(context.packageName, javaClass.name)
+                    val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+                    appWidgetIds.forEach { id ->
+                        proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+                    }
                 }
             }
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
-                 Log.d(TAG, "Received $action. Rescheduling/recalculating for all widgets.")
+                Log.d(TAG, "Received $action. Rescheduling/recalculating for all widgets.")
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val thisAppWidget = ComponentName(context.packageName, javaClass.name)
                 val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
-                appWidgetIds.forEach { appWidgetId ->
-                    Log.d(TAG, "Processing widget ID: $appWidgetId due to $action")
-                    // For these system events, recalculate and reschedule
-                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, true) // forceRecalc
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+                appWidgetIds.forEach { id ->
+                    Log.d(TAG, "Processing widget ID: $id due to $action")
+                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+                    logAllJapaneseTimesForToday(context, id) // Log all times due to time/date change
                 }
             }
-            // Add a custom action for location updates from LocationInputActivity
             LocationInputActivity.ACTION_LOCATION_UPDATED -> {
-                val appWidgetId = intent.getIntExtra(
-                    AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    AppWidgetManager.INVALID_APPWIDGET_ID
-                )
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                     Log.d(TAG, "Received location updated for widget ID: $appWidgetId. Forcing recalculation.")
                     val appWidgetManager = AppWidgetManager.getInstance(context)
-                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, true) // Force recalc
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
                     logAllJapaneseTimesForToday(context, appWidgetId) // Log all times
                 }
+            }
+            Intent.ACTION_SCREEN_ON -> { // 画面ON時に更新をトリガー
+                Log.d(TAG, "Screen ON detected. Triggering widget update for all widgets.")
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val thisAppWidget = ComponentName(context.packageName, javaClass.name)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+                appWidgetIds.forEach { id ->
+                    updateAppWidgetInternal(today, context, appWidgetManager, id, false)
+                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, id)
+                }
+            }
+            else -> {
+                super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
             }
         }
     }
 
     /**
      * 指定されたウィジェットIDの表示を更新する内部メソッド。
+     * @param pseudToday 現在日付の基準となるCalendarインスタンス。時刻は現在時刻。
      * @param context Context
      * @param appWidgetManager AppWidgetManager
      * @param appWidgetId 更新するウィジェットのID
@@ -186,9 +187,10 @@ class Oyatsu : AppWidgetProvider() {
         appWidgetId: Int,
         forceRecalc: Boolean
     ) {
-        Log.d(TAG, "Updating widget ID: $appWidgetId, forceSunriseRecalc: $forceRecalc")
+        Log.d(TAG, "Updating widget ID: $appWidgetId, forceRecalc: $forceRecalc")
         val views = RemoteViews(context.packageName, R.layout.widget_oyatsu)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
         // Load latitude and longitude
         val latitudeString = prefs.getString(PREF_LATITUDE_PREFIX + appWidgetId, null)
         val longitudeString = prefs.getString(PREF_LONGITUDE_PREFIX + appWidgetId, null)
@@ -206,14 +208,11 @@ class Oyatsu : AppWidgetProvider() {
             Log.w(TAG, "Invalid longitude format for widget $appWidgetId: $longitudeString", e)
             DEFAULT_LONGITUDE
         }
-        // Check if coordinates are default and prompt user if so (only if not already prompted recently)
-        val isDefaultLocation = (latitude == DEFAULT_LATITUDE && longitude == DEFAULT_LONGITUDE)
-        val locationSet = prefs.contains(PREF_LATITUDE_PREFIX + appWidgetId)
 
-        Log.d(TAG, "Using location for widget $appWidgetId: Lat=$latitude, Lon=$longitude. IsDefault: $isDefaultLocation, IsSet: $locationSet")
+        Log.d(TAG, "Using location for widget $appWidgetId: Lat=$latitude, Lon=$longitude.")
 
         // --- 1. 既存の暦情報計算 ---
-        val calendar = Calendar.getInstance()
+        val calendar = Calendar.getInstance() // 現在時刻を使用
         val gregorianDate = SimpleDateFormat("yyyy年MM月dd日", Locale.JAPAN).format(calendar.time)
         val japaneseMonthName = getJapaneseMonthName(calendar)
         val solarTerm = getSolarTerm(calendar)
@@ -221,27 +220,23 @@ class Oyatsu : AppWidgetProvider() {
         val japaneseYear = getJapaneseYear(calendar)
 
         // --- 2. 日の出・日の入り時刻と和時計に基づく時刻の計算・表示 ---
-        // 日の出・日の入り時刻を取得
-        val todaySunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(pseudToday, prefs, appWidgetId, true, forceRecalc) // 通常は再計算不要
-        val todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(pseudToday, prefs, appWidgetId, false, forceRecalc) // 通常は再計算不要
-        // sunTime変数をスコープ外でも使えるよう宣言
+        val todaySunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(context, appWidgetId, latitude, longitude, pseudToday, true, forceRecalc)
+        val todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(context, appWidgetId, latitude, longitude, pseudToday, false, forceRecalc)
+
         var sunTime = ""
         val japaneseTimeText: String
 
         if (todaySunriseTime != null && todaySunsetTime != null) {
-            val resultPair = calculateJapaneseTime(todaySunriseTime, todaySunsetTime)
+            val resultPair = calculateJapaneseTime(Calendar.getInstance(), todaySunriseTime, todaySunsetTime)
             japaneseTimeText = resultPair.first
             sunTime = resultPair.second
             Log.d(TAG, "Widget $appWidgetId: $japaneseTimeText (sunTime: $sunTime)")
         } else {
             Log.w(TAG, "Widget $appWidgetId: Failed to calculate sunrise/sunset. Using default text.")
-            japaneseTimeText = if (!locationSet) context.getString(R.string.location_not_set_tap_to_set) else "時刻計算エラー"
-            sunTime = context.getString(R.string.fetching_location) // Or some error indicator
-            // Potentially schedule a quick retry if it was due to a transient issue, though less likely without GPS
-            // SunriseWidgetAlarmUtils.scheduleQuickUpdate(context, appWidgetId) // If you implement this
+            japaneseTimeText = context.getString(R.string.location_not_set_tap_to_set)
+            sunTime = context.getString(R.string.fetching_location)
         }
 
-        // widget_oyatsu.xml で表示する項目
         views.setTextViewText(R.id.text_japanese_year_month, "$japaneseYear $japaneseMonthName")
         views.setTextViewText(R.id.text_gregorian_date, gregorianDate)
         views.setTextViewText(
@@ -250,7 +245,7 @@ class Oyatsu : AppWidgetProvider() {
         )
         views.setTextViewText(R.id.text_sun_time, sunTime)
 
-        // --- ウィジェットを更新 ---
+        // ウィジェットを更新
         try {
             appWidgetManager.updateAppWidget(appWidgetId, views)
             Log.d(TAG, "Widget $appWidgetId view updated successfully.")
@@ -258,101 +253,6 @@ class Oyatsu : AppWidgetProvider() {
             Log.e(TAG, "Error updating widget view for ID $appWidgetId", e)
         }
     }
-
-    /**
-     * 和時計（不定時法）の時刻を計算する
-     * 日の出から日の入りまでを6等分（卯、辰、巳、午、未、申）
-     * 日の入りから翌日の出までを6等分（酉、戌、亥、子、丑、寅）
-     * それぞれの時間帯をさらに4等分（一つ、二つ、三つ、四つ）
-     */
-    private fun calculateJapaneseTime(sunriseTime: Calendar, sunsetTime: Calendar): Pair<String, String> {
-        val now = Calendar.getInstance()
-        val currentTimeMillis = now.timeInMillis
-        val sunriseMillis = sunriseTime.timeInMillis
-        val sunsetMillis = sunsetTime.timeInMillis
-
-        // 次の日の日の出時刻を推定（単純に24時間後と仮定）
-        val nextSunriseMillis = sunriseMillis + 24 * 60 * 60 * 1000
-
-        // 日中か夜間かを判断
-        val isDaytime = currentTimeMillis in sunriseMillis until sunsetMillis
-
-        if (isDaytime) {
-            // 日中: 日の出から日の入りまでを6等分
-            val dayDurationMillis = sunsetMillis - sunriseMillis
-            if (dayDurationMillis <= 0) return Pair("時間計算エラー", "日照時間異常")
-            val timeUnitMillis = dayDurationMillis / 6.0 // 1時間単位（不定時法）
-            val timePassedMillis = currentTimeMillis - sunriseMillis
-
-            val timeUnitIndex = (timePassedMillis / timeUnitMillis).toInt() // 0-5
-            val timeSubUnitIndex = ((timePassedMillis % timeUnitMillis) / (timeUnitMillis / 4.0)).toInt() // 0-3
-
-            // 時間が範囲を超えないように調整
-            val safeTimeUnitIndex = timeUnitIndex.coerceIn(0, 5)
-            val safeTimeSubUnitIndex = timeSubUnitIndex.coerceIn(0, 3)
-
-            val hourName = dayTimeLabels[safeTimeUnitIndex]
-            val subHourName = hourNumber[safeTimeSubUnitIndex]
-
-            // 日の出・日の入り時刻（24時間表記）も表示
-            val sunriseStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunriseTime.time)
-            val sunsetStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunsetTime.time)
-
-            return Pair("$hourName$subHourName","日出$sunriseStr-日入$sunsetStr")
-        } else {
-            // 夜間: 日の入りから翌日の日の出までを6等分
-            val nightDurationMillis = if (currentTimeMillis >= sunsetMillis) {
-                // 今日の日没から翌日の日の出まで
-                nextSunriseMillis - sunsetMillis
-            } else {
-                // 昨日の日没から今日の日の出まで（現在時刻は今日の日の出前）
-                sunriseMillis - (sunsetMillis - 24 * 60 * 60 * 1000)
-            }
-
-            val timeUnitMillis = nightDurationMillis / 6.0 // 1時間単位（不定時法）
-            val timePassedMillis = if (currentTimeMillis >= sunsetMillis) {
-                // 今日の日没後
-                currentTimeMillis - sunsetMillis
-            } else {
-                // 今日の日の出前
-                currentTimeMillis - (sunsetMillis - 24 * 60 * 60 * 1000) + nightDurationMillis
-            }
-
-            val timeUnitIndex = (timePassedMillis / timeUnitMillis).toInt() // 0-5
-            val timeSubUnitIndex = ((timePassedMillis % timeUnitMillis) / (timeUnitMillis / 4.0)).toInt() // 0-3
-
-            // 時間が範囲を超えないように調整
-            val safeTimeUnitIndex = timeUnitIndex.coerceIn(0, 5)
-            val safeTimeSubUnitIndex = timeSubUnitIndex.coerceIn(0, 3)
-
-            val hourName = nightTimeLabels[safeTimeUnitIndex]
-            val subHourName = hourNumber[safeTimeSubUnitIndex]
-
-            // 日の出・日の入り時刻（24時間表記）も表示
-            val sunriseStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunriseTime.time)
-            val sunsetStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunsetTime.time)
-
-            return Pair("$hourName$subHourName", "日出 $sunriseStr-日入 $sunsetStr")
-        }
-    }
-
-    /**
-     * 位置情報処理後のウィジェット更新とスケジュール処理
-     */
-    fun proceedWithWidgetUpdate(
-        pseudToday: Calendar,
-        context: Context,
-        appWidgetId: Int,
-        forceSunriseRecalc: Boolean
-    ) {
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        // ウィジェットを更新
-        updateAppWidgetInternal(pseudToday, context, appWidgetManager, appWidgetId, forceSunriseRecalc)
-        // 次の更新をスケジュール
-        SunriseWidgetAlarmUtils.scheduleNextUpdate(pseudToday, context, appWidgetId)
-    }
-
-    // --- AlarmManager 関連 ---
     /**
      * ウィジェット更新用のPendingIntentを作成
      */
@@ -382,6 +282,7 @@ class Oyatsu : AppWidgetProvider() {
             flags
         )
     }
+
     /**
      * 指定されたウィジェットIDのアラームをキャンセルする。
      * @param context Context
@@ -396,17 +297,131 @@ class Oyatsu : AppWidgetProvider() {
     }
 
     /**
+     * 和時計（不定時法）の時刻を計算する
+     * 日の出から日の入りまでを6等分（卯、辰、巳、午、未、申）
+     * 日の入りから翌日の出までを6等分（酉、戌、亥、子、丑、寅）
+     * それぞれの時間帯をさらに4等分（一つ、二つ、三つ、四つ）
+     */
+    private fun calculateJapaneseTime(now: Calendar, sunriseTime: Calendar, sunsetTime: Calendar): Pair<String, String> {
+        val currentTimeMillis = now.timeInMillis
+        val sunriseMillis = sunriseTime.timeInMillis
+        val sunsetMillis = sunsetTime.timeInMillis
+
+        // 日の出・日の入り時刻（24時間表記）
+        val sunriseStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunriseTime.time)
+        val sunsetStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunsetTime.time)
+        val sunInfo = "日出$sunriseStr-日入$sunsetStr"
+
+        // 日の出から日の入りまでの日中の期間
+        val daytimeDurationMillis = sunsetMillis - sunriseMillis
+
+        // 翌日の日の出を計算
+        val nextDaySunriseTime = sunriseTime.clone() as Calendar
+        nextDaySunriseTime.add(Calendar.DAY_OF_YEAR, 1)
+        val nextSunriseMillis = nextDaySunriseTime.timeInMillis
+
+        // 日の入りから翌日の日の出までの夜間の期間
+        val nighttimeDurationMillis = nextSunriseMillis - sunsetMillis
+
+        val durationMillis: Long
+        val startMillis: Long
+        val labels: Array<String>
+
+        val isDaytime = currentTimeMillis >= sunriseMillis && currentTimeMillis < sunsetMillis
+
+        if (isDaytime) {
+            // 日中
+            durationMillis = daytimeDurationMillis
+            startMillis = sunriseMillis
+            labels = dayTimeLabels
+        } else {
+            // 夜間
+            if (currentTimeMillis >= sunsetMillis) {
+                // 今日の日の入り後から明日の日の出前まで
+                durationMillis = nighttimeDurationMillis
+                startMillis = sunsetMillis
+            } else {
+                // 今日の日の出前（つまり昨日の日の入り後から今日の日の出前まで）
+                val previousDaySunsetTime = sunsetTime.clone() as Calendar
+                previousDaySunsetTime.add(Calendar.DAY_OF_YEAR, -1) // 昨日の日の入り
+                val previousSunsetMillis = previousDaySunsetTime.timeInMillis
+                durationMillis = sunriseMillis - previousSunsetMillis
+                startMillis = previousSunsetMillis
+            }
+            labels = nightTimeLabels
+        }
+
+        if (durationMillis <= 0) {
+            Log.e(TAG, "Duration for Japanese time calculation is zero or negative: $durationMillis")
+            return Pair("時間計算エラー", sunInfo)
+        }
+
+        val timeUnitMillis = durationMillis / 6.0 // 1時間単位（不定時法）
+        val timePassedMillis = currentTimeMillis - startMillis
+
+        // 6つの時間帯のどこにいるか (0-5)
+        var timeUnitIndex = (timePassedMillis / timeUnitMillis).toInt()
+
+        // 4等分のどこにいるか (0-3)
+        val remainderMillis = timePassedMillis % timeUnitMillis
+        var timeSubUnitIndex = (remainderMillis / (timeUnitMillis / 4.0)).toInt()
+
+        // 境界値の調整
+        // durationMillis は double で計算しているため、timeUnitIndex が 6 になることがある。
+        // また、timeSubUnitIndex が 4 になることもあるため、インデックスを範囲内に収める。
+        if (timeUnitIndex >= labels.size) {
+            timeUnitIndex = labels.size - 1
+            timeSubUnitIndex = hourNumber.size - 1
+        }
+        if (timeSubUnitIndex >= hourNumber.size) {
+            timeSubUnitIndex = hourNumber.size - 1
+        }
+        if (timeUnitIndex < 0) {
+            timeUnitIndex = 0
+            timeSubUnitIndex = 0
+        }
+
+        val hourName = labels[timeUnitIndex]
+        val subHourName = hourNumber[timeSubUnitIndex]
+
+        return Pair("$hourName$subHourName", sunInfo)
+    }
+
+    /**
+     * 位置情報処理後のウィジェット更新とスケジュール処理
+     */
+    fun proceedWithWidgetUpdate(
+        pseudToday: Calendar,
+        context: Context,
+        appWidgetId: Int,
+        forceSunriseRecalc: Boolean
+    ) {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        // ウィジェットを更新
+        updateAppWidgetInternal(pseudToday, context, appWidgetManager, appWidgetId, forceSunriseRecalc)
+        // 次の更新をスケジュール
+        SunriseWidgetAlarmUtils.scheduleNextUpdate(pseudToday, context, appWidgetId)
+    }
+
+    /**
      * ロケーションまたは時刻設定の変更があった場合に、その日一日の calculateJapaneseTime を全てログに表示する
      */
     private fun logAllJapaneseTimesForToday(context: Context, appWidgetId: Int) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val today = Calendar.getInstance()
 
-        val sunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(today, prefs, appWidgetId, true, true)
-        val sunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(today, prefs, appWidgetId, false, true)
+        val latitudeString = prefs.getString(PREF_LATITUDE_PREFIX + appWidgetId, null)
+        val longitudeString = prefs.getString(PREF_LONGITUDE_PREFIX + appWidgetId, null)
+
+        val latitude = try { latitudeString?.toDouble() ?: DEFAULT_LATITUDE } catch (e: NumberFormatException) { DEFAULT_LATITUDE }
+        val longitude = try { longitudeString?.toDouble() ?: DEFAULT_LONGITUDE } catch (e: NumberFormatException) { DEFAULT_LONGITUDE }
+
+        // ここでは強制的に再計算させる
+        val sunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(context, appWidgetId, latitude, longitude, today, true, true)
+        val sunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(context, appWidgetId, latitude, longitude, today, false, true)
 
         if (sunriseTime == null || sunsetTime == null) {
-            Log.e(TAG, "Failed to get sunrise/sunset times for logging all Japanese times.")
+            Log.e(TAG, "Failed to get sunrise/sunset times for logging all Japanese times for widget ID: $appWidgetId.")
             return
         }
 
@@ -425,17 +440,14 @@ class Oyatsu : AppWidgetProvider() {
                 tempCalendar.set(Calendar.HOUR_OF_DAY, hour)
                 tempCalendar.set(Calendar.MINUTE, minute)
 
-                val originalNow = Calendar.getInstance() // Store original now
-                Calendar.getInstance().timeInMillis = tempCalendar.timeInMillis // Temporarily set 'now' for calculation
-
-                val (japaneseTime, sunInfo) = calculateJapaneseTime(sunriseTime, sunsetTime)
+                // calculateJapaneseTimeに直接tempCalendarを渡す
+                val (japaneseTime, sunInfo) = calculateJapaneseTime(tempCalendar, sunriseTime, sunsetTime)
                 Log.d(TAG, "Time: ${SimpleDateFormat("HH:mm", Locale.JAPAN).format(tempCalendar.time)} -> Japanese: $japaneseTime, Sun: $sunInfo")
-
-                Calendar.getInstance().timeInMillis = originalNow.timeInMillis // Restore original now
             }
         }
-        Log.d(TAG, "--- End of Japanese times log ---")
+        Log.d(TAG, "--- End of Japanese times log for widget ID: $appWidgetId ---")
     }
+
 
     /** 和風月名を取得 */
     private fun getJapaneseMonthName(calendar: Calendar): String {
@@ -448,37 +460,28 @@ class Oyatsu : AppWidgetProvider() {
 
     /** 二十四節気を取得 (簡略版 - 正確性は低い) */
     private fun getSolarTerm(calendar: Calendar): String {
-        // 注意：この計算方法は非常に簡略化されており、年によって日付がずれるため不正確です。
-        // 正確な計算には国立天文台の発表する暦要項などに基づく複雑な計算が必要です。
-        // ここでは元のロジックを維持しつつ、少し改善を試みます。
-//        val year = calendar.get(Calendar.YEAR)
         val month = calendar.get(Calendar.MONTH) // 0-11
         val day = calendar.get(Calendar.DAY_OF_MONTH)
 
-        // 二十四節気の名前
         val solarTerms = listOf(
             "小寒", "大寒", "立春", "雨水", "啓蟄", "春分", "清明", "穀雨",
             "立夏", "小満", "芒種", "夏至", "小暑", "大暑", "立秋", "処暑",
             "白露", "秋分", "寒露", "霜降", "立冬", "小雪", "大雪", "冬至"
         )
-        // 各節気の「おおよそ」の日付 (月, 日) - 年によって1日程度ずれる
-        // より正確にするには、年ごとに計算するか、正確なデータテーブルが必要
         val approxTermDates = listOf(
-            Pair(0, 5), Pair(0, 20), Pair(1, 4), Pair(1, 19), Pair(2, 5), Pair(2, 20), // 春分
-            Pair(3, 4), Pair(3, 20), Pair(4, 5), Pair(4, 21), Pair(5, 5), Pair(5, 21), // 夏至
-            Pair(6, 7), Pair(6, 22), Pair(7, 7), Pair(7, 23), Pair(8, 7), Pair(8, 23), // 秋分
-            Pair(9, 8), Pair(9, 23), Pair(10, 7), Pair(10, 22), Pair(11, 7), Pair(11, 21) // 冬至
+            Pair(0, 5), Pair(0, 20), Pair(1, 4), Pair(1, 19), Pair(2, 5), Pair(2, 20),
+            Pair(3, 4), Pair(3, 20), Pair(4, 5), Pair(4, 21), Pair(5, 5), Pair(5, 21),
+            Pair(6, 7), Pair(6, 22), Pair(7, 7), Pair(7, 23), Pair(8, 7), Pair(8, 23),
+            Pair(9, 8), Pair(9, 23), Pair(10, 7), Pair(10, 22), Pair(11, 7), Pair(11, 21)
         )
 
-        var currentSolarTerm = solarTerms.last() // 年末は冬至とする
+        var currentSolarTerm = solarTerms.last()
 
         for (i in approxTermDates.indices) {
             val (termMonth, termDay) = approxTermDates[i]
-            // 現在の日付が、節気の日付以降かどうかを比較
             if (month > termMonth || (month == termMonth && day >= termDay)) {
                 currentSolarTerm = solarTerms[i]
             } else {
-                // 比較している節気の日付より前なら、ループを抜ける（前の節気が有効）
                 break
             }
         }
@@ -492,8 +495,12 @@ class Oyatsu : AppWidgetProvider() {
             listOf("子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥") // 十二支
 
         val year = calendar.get(Calendar.YEAR)
-        val stemIndex = (year + 6) % 10
-        val branchIndex = (year + 8) % 12
+        // 1864年が甲子 (1864 % 10 = 4 (甲は0番目なので +6), 1864 % 12 = 4 (子は0番目なので +8))
+        // 実際の計算: (西暦年 - 4) % 10 -> 天干のインデックス (甲=0)
+        // (西暦年 - 4) % 12 -> 地支のインデックス (子=0)
+        // または、西暦年の剰余から直接インデックスを求める
+        val stemIndex = (year - 4) % 10
+        val branchIndex = (year - 4) % 12
         val stem = stems[stemIndex]
         val branch = branches[branchIndex]
         Log.d(TAG, "今年(" + year + "年)の干支: $stem$branch")
@@ -506,45 +513,39 @@ class Oyatsu : AppWidgetProvider() {
         val month = calendar.get(Calendar.MONTH) + 1 // 1-12
         val day = calendar.get(Calendar.DAY_OF_MONTH)
 
-        // 元号の開始年月日 (YYYY, MM, DD)
         val reiwaStartDate = Triple(2019, 5, 1)
         val heiseiStartDate = Triple(1989, 1, 8)
         val showaStartDate = Triple(1926, 12, 25)
         val taishoStartDate = Triple(1912, 7, 30)
-        val meijiStartDate = Triple(1868, 1, 25) // グレゴリオ暦の明治改元日(M1.9.8)より前だが、一般に西暦1868年=明治元年とされる開始日
+        val meijiStartDate = Triple(1868, 1, 25)
 
         return when {
-            // 令和
             year > reiwaStartDate.first || (year == reiwaStartDate.first && (month > reiwaStartDate.second || (month == reiwaStartDate.second && day >= reiwaStartDate.third)))
-                -> "令和${toKanjiNumber(year - reiwaStartDate.first + 1)}年" // 令和N年 = 西暦 - 2019 + 1
+                -> "令和${toKanjiNumber(year - reiwaStartDate.first + 1)}年"
 
-            // 平成
             year > heiseiStartDate.first || (year == heiseiStartDate.first && (month > heiseiStartDate.second || (month == heiseiStartDate.second && day >= heiseiStartDate.third)))
-                -> "平成${toKanjiNumber(year - heiseiStartDate.first + 1)}年" // 平成N年 = 西暦 - 1989 + 1
+                -> "平成${toKanjiNumber(year - heiseiStartDate.first + 1)}年"
 
-            // 昭和
             year > showaStartDate.first || (year == showaStartDate.first && (month > showaStartDate.second || (month == showaStartDate.second && day >= showaStartDate.third)))
-                -> "昭和${toKanjiNumber(year - showaStartDate.first + 1)}年" // 昭和N年 = 西暦 - 1926 + 1
+                -> "昭和${toKanjiNumber(year - showaStartDate.first + 1)}年"
 
-            // 大正
             year > taishoStartDate.first || (year == taishoStartDate.first && (month > taishoStartDate.second || (month == taishoStartDate.second && day >= taishoStartDate.third)))
-                -> "大正${toKanjiNumber(year - taishoStartDate.first + 1)}年" // 大正N年 = 西暦 - 1912 + 1
+                -> "大正${toKanjiNumber(year - taishoStartDate.first + 1)}年"
 
-            // 明治 (明治元年は1868年だが、改元日より前の日付も含む場合があるため簡略化)
-            year >= meijiStartDate.first // 1868年以降
-                -> "明治${toKanjiNumber(year - meijiStartDate.first + 1)}年" // 明治N年 = 西暦 - 1868 + 1
+            year >= meijiStartDate.first
+                -> "明治${toKanjiNumber(year - meijiStartDate.first + 1)}年"
 
-            else -> "${year}年" // 明治より前は西暦表示
+            else -> "${year}年"
         }
     }
 
     /** 数値を漢数字（元号用）に変換 */
     private fun toKanjiNumber(num: Int): String {
-        if (num <= 0) return "" // 0年や負数はなし
-        if (num == 1) return "元" // 1年目は「元」
+        if (num <= 0) return ""
+        if (num == 1) return "元"
 
         val kanjiDigits = arrayOf("〇", "一", "二", "三", "四", "五", "六", "七", "八", "九")
-        val kanjiPowers = arrayOf("", "十", "百", "千") // 位取り
+        val kanjiPowers = arrayOf("", "十", "百", "千")
 
         val sNum = num.toString()
         var result = ""
@@ -552,7 +553,7 @@ class Oyatsu : AppWidgetProvider() {
 
         for (i in 0 until len) {
             val digit = sNum[i].toString().toInt()
-            val powerIndex = len - 1 - i // 0:一の位, 1:十の位, ...
+            val powerIndex = len - 1 - i
 
             if (digit > 0) {
                 // 「一十」を「十」と表示するための処理 (百、千の位の「一」は表示)

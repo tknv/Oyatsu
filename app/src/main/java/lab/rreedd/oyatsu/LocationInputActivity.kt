@@ -2,6 +2,7 @@ package lab.rreedd.oyatsu
 
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
@@ -12,26 +13,30 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
+import java.util.Calendar
 import java.util.regex.Pattern
+import kotlin.text.toDouble
 
 private const val TAG_INPUT_ACTIVITY = "LocationInputActivity"
 private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
 private const val PREF_LATITUDE_PREFIX = "latitude_"
 private const val PREF_LONGITUDE_PREFIX = "longitude_"
-const val DEFAULT_LATITUDE_STRING = "35.675163966" // Tokyo Station
-const val DEFAULT_LONGITUDE_STRING = "139.766830266" // Tokyo Station
+// デフォルト値はOyatsu.ktから取得するか、同期させる
+const val DEFAULT_LATITUDE_STRING = "35.681444600642514" // Tokyo Station
+const val DEFAULT_LONGITUDE_STRING = "139.76579265965165" // Tokyo Station
 
 class LocationInputActivity : AppCompatActivity() {
 
     private lateinit var editTextLatitude: EditText
     private lateinit var editTextLongitude: EditText
     private lateinit var buttonApply: Button
+    private lateinit var japaneseClockView: JapaneseClockView // Custom viewのインスタンス
 
-    // このActivityがメインになったため、特定のウィジェットIDを意識する必要は薄れるが、
-    // 既存のウィジェットがある場合にそれらを更新するロジックは有用なので残す。
-    // appWidgetId は、ウィジェット設定フローから起動された場合にのみ有効な値を持つ。
-    // 直接アプリとして起動された場合は INVALID_APPWIDGET_ID となる。
     private var appWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
+
+    companion object {
+        const val ACTION_LOCATION_UPDATED = "lab.rreedd.oyatsu.ACTION_LOCATION_UPDATED"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,18 +45,12 @@ class LocationInputActivity : AppCompatActivity() {
         editTextLatitude = findViewById(R.id.editTextLatitude)
         editTextLongitude = findViewById(R.id.editTextLongitude)
         buttonApply = findViewById(R.id.buttonApply)
+        japaneseClockView = findViewById(R.id.japaneseClockView) // JapaneseClockViewを初期化
 
-        // ランチャーからの起動や、ウィジェット設定フローからの起動をハンドル
         appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
-
-        // If no widget ID, this activity might have been launched for general settings
-        // or by a share intent not tied to a specific widget.
-        // For simplicity, we'll assume if it's not INVALID_APPWIDGET_ID, it's for THAT widget.
-        // If opened by share, and appWidgetId is INVALID, we might prompt user or apply to a default/first widget.
-        // For now, if shared, it will apply to the 'active' widget or potentially just store as a general default.
 
         loadSavedCoordinates()
         setupValidation()
@@ -61,6 +60,8 @@ class LocationInputActivity : AppCompatActivity() {
         }
 
         handleIntent(intent)
+        // ClockViewの初期表示を更新
+        updateClockView()
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -128,7 +129,6 @@ class LocationInputActivity : AppCompatActivity() {
         }
     }
 
-
     private val coordinatePattern =
         Pattern.compile("([-+]?\\d{1,2}(\\.\\d+)?),\\s*([-+]?\\d{1,3}(\\.\\d+)?)")
 
@@ -162,7 +162,6 @@ class LocationInputActivity : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.failed_to_parse_shared_location), Toast.LENGTH_LONG)
             .show()
     }
-
 
     private fun loadSavedCoordinates() {
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -252,6 +251,29 @@ class LocationInputActivity : AppCompatActivity() {
         buttonApply.isEnabled = latValid && lonValid
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+    }
+
+    private fun validateInputs() {
+        val latitudeStr = editTextLatitude.text.toString()
+        val longitudeStr = editTextLongitude.text.toString()
+
+        val isLatitudeValid = isValidCoordinate(latitudeStr, -90.0, 90.0)
+        val isLongitudeValid = isValidCoordinate(longitudeStr, -180.0, 180.0)
+
+        buttonApply.isEnabled = isLatitudeValid && isLongitudeValid
+    }
+
+    private fun isValidCoordinate(coordStr: String, min: Double, max: Double): Boolean {
+        return try {
+            val coord = coordStr.toDouble()
+            coord >= min && coord <= max
+        } catch (e: NumberFormatException) {
+            false
+        }
+    }
 
     private fun saveCoordinates() {
         val latStr = editTextLatitude.text.toString()
@@ -301,6 +323,7 @@ class LocationInputActivity : AppCompatActivity() {
                 }
             }
             apply() // 即時書き込みではなく非同期書き込みを推奨
+            updateClockView()
         }
 
         Toast.makeText(this, getString(R.string.location_saved), Toast.LENGTH_SHORT).show()
@@ -336,5 +359,60 @@ class LocationInputActivity : AppCompatActivity() {
         if (intent?.action == AppWidgetManager.ACTION_APPWIDGET_CONFIGURE || appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             finish()
         }
+    }
+
+    private fun saveLocationAndFinish() {
+        val latitudeStr = editTextLatitude.text.toString()
+        val longitudeStr = editTextLongitude.text.toString()
+
+        try {
+            val latitude = latitudeStr.toDouble()
+            val longitude = longitudeStr.toDouble()
+
+            // Save to SharedPreferences for this specific widget ID
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().apply {
+                putString(PREF_LATITUDE_PREFIX + appWidgetId, latitude.toString())
+                putString(PREF_LONGITUDE_PREFIX + appWidgetId, longitude.toString())
+                apply()
+            }
+
+            // Notify the widget provider that the location has been updated
+            // BroadCastIntentを使ってOyatsuウィジェットに更新を通知
+            val updateIntent = Intent(this, Oyatsu::class.java).apply {
+                action = ACTION_LOCATION_UPDATED
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            sendBroadcast(updateIntent)
+
+            Toast.makeText(this, getString(R.string.location_saved), Toast.LENGTH_SHORT).show()
+
+            // Finish the activity for widget configuration flow
+            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                val resultValue = Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                setResult(RESULT_OK, resultValue)
+                finish()
+            } else {
+                // If launched as a regular activity, just update the clock view
+                updateClockView()
+            }
+
+        } catch (e: NumberFormatException) {
+            Toast.makeText(this, "有効な数値を入力してください", Toast.LENGTH_SHORT).show()
+            Log.e(TAG_INPUT_ACTIVITY, "Invalid number format", e)
+        }
+    }
+
+    private fun updateClockView() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val latitude = editTextLatitude.text.toString().toDoubleOrNull() ?: DEFAULT_LATITUDE_STRING.toDouble()
+        val longitude = editTextLongitude.text.toString().toDoubleOrNull() ?: DEFAULT_LONGITUDE_STRING.toDouble()
+        val today = Calendar.getInstance()
+
+        // SunriseSunsetUtilsを使って日の出・日の入り時刻を取得
+        val sunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(this, appWidgetId, latitude, longitude, today, true, true)
+        val sunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(this, appWidgetId, latitude, longitude, today, false, true)
+
+        // Custom Clock Viewを更新
+        japaneseClockView.setSunriseSunsetTimes(sunriseTime, sunsetTime)
     }
 }

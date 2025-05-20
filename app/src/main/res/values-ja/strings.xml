@@ -16,4 +16,7 @@
     <string name="info_share_from_maps">地図アプリ(OSmAnd)から場所を共有して、ここに設定することもできます。グーグルのマップアプリからは共有できないので緯度経度コピペして張り付けてください。</string>
     <string name="failed_to_parse_shared_location">共有された場所の解析に失敗しました。</string>
     <string name="fetching_location">場所を取得しています...</string>
-    <string name="action_settings">設定</string> </resources>
+    <string name="action_settings">設定</string>
+    <string name="invalid_coordinates">緯度経度がおかしいです。</string>
+    <string name="tap_to_config">タップして設定</string>
+</resources>
