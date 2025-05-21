@@ -8,18 +8,18 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.widget.RemoteViews
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import android.net.Uri
 
 private const val TAG = "OyatsuWidget"
 private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
-private const val PREF_LATITUDE_PREFIX = "latitude_"       // 例: latitude_123
-private const val PREF_LONGITUDE_PREFIX = "longitude_"      // 例: longitude_123
+private const val PREF_LATITUDE_PREFIX = "latitude_"
+private const val PREF_LONGITUDE_PREFIX = "longitude_"
 private const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE"
 private const val DEFAULT_LATITUDE = 35.681444600642514 // デフォルト緯度（東京駅） - 位置情報が取れない場合に使用
 private const val DEFAULT_LONGITUDE = 139.76579265965165 // デフォルト経度（東京駅）
@@ -30,10 +30,6 @@ class Oyatsu : AppWidgetProvider() {
     private val nightTimeLabels = arrayOf("酉", "戌", "亥", "子", "丑", "寅")
     private val hourNumber = arrayOf("一つ", "二つ", "三つ", "四つ")
 
-    /**
-     * ウィジェットが更新されるタイミングで呼び出される。
-     * (updatePeriodMillis, AlarmManager, 設定変更など)
-     */
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -65,17 +61,18 @@ class Oyatsu : AppWidgetProvider() {
         }
     }
 
-    /**
-     * このプロバイダーの最後のウィジェットインスタンスが削除されたときに呼び出される。
-     */
     override fun onDisabled(context: Context) {
-        Log.d(TAG, "onDisabled called")
-        // No specific action needed here beyond what onDeleted handles for individual widgets.
+        // Enter relevant functionality for when the last widget is disabled
+        Log.d(TAG, "Last widget disabled. Cancelling all alarms.")
+        // すべてのウィジェットのアラームをキャンセル
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val thisAppWidget = ComponentName(context.packageName, javaClass.name)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
+        appWidgetIds.forEach { appWidgetId ->
+            SunriseWidgetAlarmUtils.cancelAlarm(context, appWidgetId)
+        }
     }
 
-    /**
-     * ウィジェットインスタンスが削除されたときに呼び出される。
-     */
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         Log.d(TAG, "onDeleted called for ids: ${appWidgetIds.joinToString()}")
         appWidgetIds.forEach { appWidgetId ->
@@ -571,12 +568,16 @@ class Oyatsu : AppWidgetProvider() {
     }
 }
 
+// WidgetUpdateReceiver および ScreenOnReceiver は変更なし
+// ...
 class WidgetUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appWidgetId = intent?.getIntExtra("appWidgetId", -1) ?: -1
         if (appWidgetId != -1) {
             Log.i("WidgetUpdateReceiver", "Widget $appWidgetId update triggered.")
-            // ウィジェット更新ロジックをここに追加
+            val today = Calendar.getInstance()
+            SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+//            Oyatsu.updateAppWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
         }
     }
 }
@@ -585,7 +586,8 @@ class ScreenOnReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == Intent.ACTION_SCREEN_ON) {
             Log.i("ScreenOnReceiver", "Screen ON detected. Triggering widget update.")
-            val appWidgetIds = AppWidgetManager.getInstance(context).getAppWidgetIds(
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(
                 ComponentName(context, Oyatsu::class.java)
             )
             val today = Calendar.getInstance()

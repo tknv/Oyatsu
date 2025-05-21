@@ -4,8 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect // Rect は使っていないので削除可能
-import android.graphics.RectF // RectF は使っていないので削除可能 (もし必要なら追加)
+import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
@@ -14,9 +13,9 @@ import android.view.View
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.cos // 使っていないので削除可能
+import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.sin // 使っていないので削除可能
+import kotlin.math.sin
 
 class JapaneseClockView @JvmOverloads constructor(
     context: Context,
@@ -30,193 +29,635 @@ class JapaneseClockView @JvmOverloads constructor(
     private var sunriseTime: Calendar? = null
     private var sunsetTime: Calendar? = null
 
-    // === ここから追加・修正する部分 ===
     // HandlerをメインスレッドのLooperに関連付けて初期化する
-    // これがNullPointerExceptionの原因だった可能性が高い
     private val updateHandler = Handler(Looper.getMainLooper())
 
     // 定期的な描画更新のためのRunnable
     private val updateRunnable = object : Runnable {
         override fun run() {
-            // UI更新ロジック (例: 時刻の再計算、描画の再実行)
-            invalidate() // onDrawを呼び出してビューを再描画
-            updateHandler.postDelayed(this, 1000) // 1秒ごとに更新
+            invalidate() // onDrawを呼び出して再描画
+
+            // 次の更新までの遅延時間を計算
+            val currentTime = Calendar.getInstance()
+            val (_, sunInfo) = calculateJapaneseTimeAndSunInfo(currentTime) // 更新時間を計算するために呼び出し
+            val currentSunrise = sunInfo["sunrise"]
+            val currentSunset = sunInfo["sunset"]
+
+            var delayMillis = 60 * 1000L // デフォルトは1分 (1分置きの更新)
+
+            if (currentSunrise != null && currentSunset != null) {
+                val dayDurationMillis = currentSunset.timeInMillis - currentSunrise.timeInMillis
+                val nextDaySunrise = Calendar.getInstance().apply {
+                    timeInMillis = currentSunrise.timeInMillis + 24 * 3600 * 1000L
+                }
+                val nightDurationMillis = nextDaySunrise.timeInMillis - currentSunset.timeInMillis
+
+                val nowMillis = currentTime.timeInMillis
+
+                // 現在が昼間か夜間かで更新間隔を計算
+                // 有効な日の出・日の入り時刻がない場合はデフォルト遅延のまま
+                if (dayDurationMillis > 0 && nightDurationMillis > 0) {
+                    if (nowMillis >= currentSunrise.timeInMillis && nowMillis < currentSunset.timeInMillis) {
+                        // 昼間: 日の出から日の入りまでを384で割った時間で更新
+                        delayMillis = (dayDurationMillis / 384.0).toLong()
+                    } else {
+                        // 夜間: 日の入りから翌日の出までを384で割った時間で更新
+                        delayMillis = (nightDurationMillis / 384.0).toLong()
+                    }
+                }
+            }
+            // 最小更新間隔を設ける (例: 1秒)
+            if (delayMillis < 1000L) delayMillis = 1000L
+
+            Log.d(TAG, "Next update in: ${delayMillis / 1000.0} seconds")
+            updateHandler.postDelayed(this, delayMillis)
         }
     }
-    // === ここまで追加・修正する部分 ===
 
-
-    // 描画用のPaintオブジェクト群
-    private val hourPaint = Paint().apply {
-        color = Color.BLACK
+    // ペイントオブジェクト
+    private val textPaint = Paint().apply {
+        color = Color.WHITE // 和時刻の文字色
         textSize = 36f
         textAlign = Paint.Align.CENTER
         isAntiAlias = true
     }
 
-    private val minutePaint = Paint().apply {
-        color = Color.DKGRAY
-        textSize = 24f
-        textAlign = Paint.Align.CENTER
+    private val linePaint = Paint().apply {
+        color = Color.BLACK // 時計の円周線や目盛り線の色
+        strokeWidth = 3f
         isAntiAlias = true
     }
 
     private val handPaint = Paint().apply {
-        color = Color.RED
-        strokeWidth = 6f
+        color = Color.WHITE // 針の色
+        strokeWidth = 8f
+        strokeCap = Paint.Cap.ROUND
         isAntiAlias = true
-        style = Paint.Style.STROKE
     }
 
-    private val centerPaint = Paint().apply {
-        color = Color.RED
+    /* 背景色の描画は削除するため、以下のPaintは不要
+    private val dayBackgroundPaint = Paint().apply {
+        color = Color.parseColor("#FFA500") // 橙色
         style = Paint.Style.FILL
         isAntiAlias = true
     }
 
-    private val circlePaint = Paint().apply {
-        color = Color.BLACK
-        strokeWidth = 4f
-        style = Paint.Style.STROKE
+    private val nightBackgroundPaint = Paint().apply {
+        color = Color.parseColor("#4169E1") // 藍色
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+    */
+
+    private val dotPaint = Paint().apply {
+        color = Color.GRAY // 点の色
+        textSize = 20f
+        textAlign = Paint.Align.CENTER
         isAntiAlias = true
     }
 
-    // init ブロックはコンストラクタが呼び出された後に実行される
+    // 十二支のラベル (午を起点に右回り、等間隔で固定)
+    private val japaneseTimeLabelsFixedOrder = arrayOf(
+        "午", "未", "申", "酉", "戌", "亥", "子", "丑", "寅", "卯", "辰", "巳"
+    )
+
+    // 時間の等分を表すラベル (一つ、二つ、三つ、四つ)
+    private val hourNumber = arrayOf("一つ", "二つ", "三つ", "四つ")
+
+    // 計算用。日の出から始まる順 (卯、辰、巳、午、未、申, 酉, 戌, 亥, 子, 丑, 寅)
+    private val japaneseTimeLabelsFullCycle = arrayOf(
+        "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑", "寅"
+    )
+
+
     init {
-        // === ここから追加・修正する部分 ===
-        // updateRunnable をスケジュールする (クラッシュログの85行目はこの辺りか、またはこの直前のHandler初期化が失敗している可能性)
-        updateHandler.post(updateRunnable)
-        // === ここまで追加・修正する部分 ===
+        // ビューがアタッチされたら更新を開始
+        startUpdating()
     }
 
-    /**
-     * 日の出・日の入り時刻を設定し、ビューを更新します。
-     * @param sunrise 日の出時刻 (Calendarオブジェクト)
-     * @param sunset 日の入り時刻 (Calendarオブジェクト)
-     */
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        startUpdating()
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        stopUpdating()
+    }
+
     fun setSunriseSunsetTimes(sunrise: Calendar?, sunset: Calendar?) {
         this.sunriseTime = sunrise
         this.sunsetTime = sunset
-        invalidate() // 時刻が更新されたら再描画
+        invalidate() // 時刻が設定されたら再描画
+        // 日の出・日の入り時刻が変わった場合は、更新間隔も再計算するためRunnableを一度リセット
+        stopUpdating()
+        startUpdating()
+    }
+
+    /**
+     * 定期的な更新を開始する
+     */
+    private fun startUpdating() {
+        updateHandler.removeCallbacks(updateRunnable) // 既存のコールバックを削除
+        updateHandler.post(updateRunnable) // 即座に実行し、その後定期的に実行
+    }
+
+    /**
+     * 定期的な更新を停止する
+     */
+    private fun stopUpdating() {
+        updateHandler.removeCallbacks(updateRunnable) // コールバックを停止
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val currentTime = Calendar.getInstance()
-        val formattedTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(currentTime.time)
-
+        val width = width.toFloat()
+        val height = height.toFloat()
         val centerX = width / 2f
         val centerY = height / 2f
-        val radius = (minOf(width, height) / 2f) * 0.8f
+        val radius = min(width, height) / 2f * 0.8f // 時計の半径
 
-        // 時刻表示
-        canvas.drawCircle(centerX, centerY, radius, circlePaint)
-        canvas.drawText(formattedTime, centerX, centerY, hourPaint) // hourPaintをテキスト表示に流用
+        val currentTime = Calendar.getInstance()
+        val (japaneseTimeDisplay, sunInfo) = calculateJapaneseTimeAndSunInfo(currentTime)
 
-        // 日の出・日の入り時刻と和時計の計算・表示
-        if (sunriseTime != null && sunsetTime != null) {
-            val (japaneseTime, sunInfo) = calculateJapaneseTime(currentTime, sunriseTime!!, sunsetTime!!)
-            canvas.drawText("和時計: $japaneseTime", centerX, centerY + 50f, minutePaint) // minutePaintをテキスト表示に流用
-            canvas.drawText("日出没: $sunInfo", centerX, centerY + 100f, minutePaint) // minutePaintをテキスト表示に流用
-        } else {
-            canvas.drawText("位置情報未設定", centerX, centerY + 50f, minutePaint)
+        val currentSunrise = sunInfo["sunrise"]
+        val currentSunset = sunInfo["sunset"]
+
+        /* 背景の描画は削除
+        if (currentSunrise != null && currentSunset != null) {
+            // 背景の描画 (日の出から日の入りまでを橙色、日の入りから翌日の出までを藍色)
+            drawClockBackground(canvas, centerX, centerY, radius, currentSunrise, currentSunset)
+        }
+        */
+
+        // 時計の円を描画 (背景の上に描画)
+        canvas.drawCircle(centerX, centerY, radius, linePaint)
+
+        // 現在の和時計の時刻を中央に表示（例: 午一つ）
+        textPaint.textSize = 48f // 中央の文字サイズ
+        val textHeight = textPaint.descent() - textPaint.ascent()
+        canvas.drawText(japaneseTimeDisplay, centerX, centerY - (textPaint.ascent() + textPaint.descent()) / 2, textPaint)
+        textPaint.textSize = 36f // 元に戻す (デフォルトサイズ)
+
+        // 和時計の十二支ラベルと目盛り (不定時法に従い配置)
+        if (currentSunrise != null && currentSunset != null) {
+            drawJapaneseClockMarks(canvas, centerX, centerY, radius, sunInfo)
+            // 外周にシステム時計の数字
+            drawSystemClockMarks(canvas, centerX, centerY, radius * 1.25f, currentSunrise, currentSunset)
+        }
+
+        // 和時刻に従う針を描画
+        if (currentSunrise != null && currentSunset != null) {
+            drawJapaneseHourHand(canvas, centerX, centerY, radius * 0.65f, currentTime, currentSunrise, currentSunset)
         }
     }
 
-    // Oyatsu.kt からコピーした和時計計算ロジック
-    private fun calculateJapaneseTime(now: Calendar, sunriseTime: Calendar, sunsetTime: Calendar): Pair<String, String> {
+    /* drawClockBackground 関数は削除
+    private fun drawClockBackground(canvas: Canvas, centerX: Float, centerY: Float, radius: Float, sunrise: Calendar, sunset: Calendar) {
+        val rectF = RectF(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
+
+        // 日の出・日の入り時刻を24時間サイクルでのミリ秒に変換
+        // 今日の0時0分0秒のタイムスタンプを取得
+        val todayMidnight = Calendar.getInstance().apply {
+            time = sunrise.time // 日の出と同じ日付に設定 (日付部分だけ利用)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val sunriseMillisOfDay = sunrise.timeInMillis - todayMidnight
+        var sunsetMillisOfDay = sunset.timeInMillis - todayMidnight
+
+        // 日の入りが日の出より前の場合は、翌日の日の入りとして扱う (日付をまたぐ場合)
+        if (sunsetMillisOfDay < sunriseMillisOfDay) {
+            sunsetMillisOfDay += 24 * 3600 * 1000L
+        }
+
+        val TOTAL_MILLIS_IN_DAY = 24 * 3600 * 1000L
+
+        // システム時計の角度 (12時が0度、時計回り) を計算するヘルパー
+        // 0時/24時が下(180度)、12時が上(0度)
+        val getSystemClockAngleDegrees = { millisFromMidnight: Long ->
+            val progress = millisFromMidnight.toFloat() / TOTAL_MILLIS_IN_DAY.toFloat()
+            (progress * 360f - 180f + 360f) % 360f
+        }
+
+        val sunriseAngleDegreesClock = getSystemClockAngleDegrees(sunriseMillisOfDay)
+        val sunsetAngleDegreesClock = getSystemClockAngleDegrees(sunsetMillisOfDay)
+
+        // CanvasのdrawArcの角度に変換 (3時が0度、反時計回り)
+        // システム時計の0度（上）がCanvasの270度、システム時計の90度（右）がCanvasの0度
+        val canvasStartAngleDay = (sunriseAngleDegreesClock - 90f + 360f) % 360f
+        val canvasEndAngleDay = (sunsetAngleDegreesClock - 90f + 360f) % 360f
+
+        // 昼の掃引角度を計算
+        var sweepAngleDay = if (canvasEndAngleDay >= canvasStartAngleDay) {
+            canvasEndAngleDay - canvasStartAngleDay
+        } else {
+            360f - canvasStartAngleDay + canvasEndAngleDay
+        }
+        if (sweepAngleDay < 0) sweepAngleDay += 360f
+
+        // 昼の背景 (橙色)
+        canvas.drawArc(rectF, canvasStartAngleDay, sweepAngleDay, true, dayBackgroundPaint)
+
+        // 夜の背景 (藍色)
+        val canvasStartAngleNight = canvasEndAngleDay // 夜は昼の終わりから始まる
+        val sweepAngleNight = 360f - sweepAngleDay // 全体から昼の角度を引く
+        canvas.drawArc(rectF, canvasStartAngleNight, sweepAngleNight, true, nightBackgroundPaint)
+    }
+    */
+
+
+    /**
+     * 和時計の十二支ラベルと不定時法の目盛りを描画する。
+     * 十二支ラベルは等間隔に配置される（午が頂点）。
+     * 四等分点は不定時法に従い配置される。
+     * @param canvas Canvas
+     * @param centerX 中心X座標
+     * @param centerY 中心Y座標
+     * @param radius 時計の半径
+     * @param sunInfo 日の出・日の入り時刻
+     */
+    private fun drawJapaneseClockMarks(canvas: Canvas, centerX: Float, centerY: Float, radius: Float, sunInfo: Map<String, Calendar>) {
+        val currentSunrise = sunInfo["sunrise"]
+        val currentSunset = sunInfo["sunset"]
+
+        if (currentSunrise == null || currentSunset == null) {
+            Log.e(TAG, "日の出・日の入り時刻が設定されていません。和時計の表示ができません。")
+            return
+        }
+
+        val dayDurationMillis = currentSunset.timeInMillis - currentSunrise.timeInMillis
+        val nextDaySunrise = Calendar.getInstance().apply {
+            timeInMillis = currentSunrise.timeInMillis + 24 * 3600 * 1000L
+        }
+        val nightDurationMillis = nextDaySunrise.timeInMillis - currentSunset.timeInMillis
+
+        if (dayDurationMillis <= 0 || nightDurationMillis <= 0) {
+            Log.e(TAG, "日の出・日の入り時間の計算に問題があります。")
+            return
+        }
+
+        val dayUnitMillis = dayDurationMillis / 6.0
+        val nightUnitMillis = nightDurationMillis / 6.0
+
+        val shortLineLength = 0.05f * radius // 短い線の長さ
+
+        // ラベルの描画 (十二支は等間隔で固定配置)
+        val labelTextSize = 36f * 1.3f // 30%大きくする
+        textPaint.textSize = labelTextSize
+
+        val totalLabels = japaneseTimeLabelsFixedOrder.size // 12
+        val angleIncrement = 360f / totalLabels // 30度ずつ
+
+        // 午の刻が真上 (0度) になるように、各ラベルの位置を計算
+        // 0番目の要素"午"が上に来るようにする
+        japaneseTimeLabelsFixedOrder.forEachIndexed { index, label ->
+            // 角度は「午」が0度で時計回り。 index 0 = 午
+            val angleDegrees = 0f + index * angleIncrement
+            val angleRadians = Math.toRadians(angleDegrees.toDouble()).toFloat()
+
+            val labelRadius = radius * 0.90f // 時計の円周の内側に配置
+            val x = centerX + labelRadius * sin(angleRadians)
+            val y = centerY - labelRadius * cos(angleRadians) // Y軸は上方向が負なので、cosの符号を反転
+
+            // テキストのベースライン補正
+            canvas.drawText(label, x, y + textPaint.textSize / 2.5f, textPaint)
+        }
+        textPaint.textSize = 36f // 元に戻す
+
+        // 不定時法の四等分点を表示 (線と点で描画)
+        val allJapanesePeriods = mutableListOf<Calendar>()
+        allJapanesePeriods.addAll(listOf(
+            currentSunrise, // 卯一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunrise.timeInMillis + (1 * dayUnitMillis).toLong() }, // 辰一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunrise.timeInMillis + (2 * dayUnitMillis).toLong() }, // 巳一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunrise.timeInMillis + (3 * dayUnitMillis).toLong() }, // 午一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunrise.timeInMillis + (4 * dayUnitMillis).toLong() }, // 未一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunrise.timeInMillis + (5 * dayUnitMillis).toLong() }, // 申一つ
+            currentSunset, // 酉一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunset.timeInMillis + (1 * nightUnitMillis).toLong() }, // 戌一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunset.timeInMillis + (2 * nightUnitMillis).toLong() }, // 亥一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunset.timeInMillis + (3 * nightUnitMillis).toLong() }, // 子一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunset.timeInMillis + (4 * nightUnitMillis).toLong() }, // 丑一つ
+            Calendar.getInstance().apply { timeInMillis = currentSunset.timeInMillis + (5 * nightUnitMillis).toLong() } // 寅一つ
+        ))
+
+        for (i in 0 until allJapanesePeriods.size) {
+            val currentHourStartTimeMillis = allJapanesePeriods[i].timeInMillis
+            val nextHourStartTimeMillis = if (i < allJapanesePeriods.size - 1) {
+                allJapanesePeriods[i + 1].timeInMillis
+            } else {
+                nextDaySunrise.timeInMillis // 最後の寅の次は翌日の日の出
+            }
+
+            val currentHourDuration = nextHourStartTimeMillis - currentHourStartTimeMillis
+            val subUnitDuration = currentHourDuration / 4.0
+
+            for (j in 1..3) { // 「一つ」は開始点なので、二つ、三つ、四つの線と点を描画
+                val subunitTimeMillis = currentHourStartTimeMillis + (j * subUnitDuration).toLong()
+                // この角度計算は、現在の和時計の「午一つ」が頂点に固定された等間隔の和時計上で、
+                // 指定されたシステム時刻（subunitTimeMillis）がどの和時刻に該当し、
+                // その和時刻の角度がどこにあるかを返す
+                val angle = getTimeAngleForJapaneseClock(
+                    subunitTimeMillis,
+                    currentSunrise,
+                    currentSunset,
+                    dayDurationMillis,
+                    nightDurationMillis
+                )
+
+                // 線を描画
+                val outerX = centerX + radius * sin(angle)
+                val outerY = centerY - radius * cos(angle)
+                val innerX = centerX + (radius - shortLineLength) * sin(angle)
+                val innerY = centerY - (radius - shortLineLength) * cos(angle)
+                canvas.drawLine(outerX, outerY, innerX, innerY, linePaint)
+
+                // 「・」を描画
+                val dotRadius = radius * 0.9f // 点の描画半径
+                val dotX = centerX + dotRadius * sin(angle)
+                val dotY = centerY - dotRadius * cos(angle) + dotPaint.textSize / 2.5f // Y軸補正
+                canvas.drawText("・", dotX, dotY, dotPaint)
+            }
+        }
+    }
+
+
+    /**
+     * 指定されたシステム時刻が、午の刻を頂点とし、十二支が等間隔に配置された和時計の円周上で
+     * どの角度に相当するかを計算する。
+     *
+     * @param targetTimeMillis 評価対象のシステム時刻 (ms)
+     * @param sunrise 日の出時刻
+     * @param sunset 日の入り時刻
+     * @param dayDurationMillis 昼の長さ (ms)
+     * @param nightDurationMillis 夜の長さ (ms)
+     * @return 和時計の円周上での角度 (ラジアン, 午が0度で時計回り)
+     */
+    private fun getTimeAngleForJapaneseClock(targetTimeMillis: Long, sunrise: Calendar, sunset: Calendar, dayDurationMillis: Long, nightDurationMillis: Long): Float {
+        val todaySunrise = sunrise.timeInMillis
+        val todaySunset = sunset.timeInMillis
+        val nextDaySunrise = sunrise.timeInMillis + 24 * 3600 * 1000L // 翌日の日の出
+
+        // ターゲット時刻を日の出から翌日の日の出までの24時間サイクルに正規化
+        var effectiveTargetTimeMillis = targetTimeMillis
+        while (effectiveTargetTimeMillis < todaySunrise) {
+            effectiveTargetTimeMillis += 24 * 3600 * 1000L
+        }
+        while (effectiveTargetTimeMillis >= nextDaySunrise) {
+            effectiveTargetTimeMillis -= 24 * 3600 * 1000L
+        }
+
+        val isDayTime = effectiveTargetTimeMillis >= todaySunrise && effectiveTargetTimeMillis < todaySunset
+
+        val hourIndex: Int // 0-11 for 卯-寅 (japaneseTimeLabelsFullCycle のインデックス)
+        val subHourProgress: Float // 0.0-1.0 within the sub-hour (一つ-四つ)
+
+        if (isDayTime) {
+            val timePassed = effectiveTargetTimeMillis - todaySunrise
+            val unitDuration = dayDurationMillis / 6.0
+            val exactHour = timePassed / unitDuration
+            hourIndex = exactHour.toInt() // 卯=0, 辰=1, ..., 申=5
+            subHourProgress = (exactHour - hourIndex).toFloat()
+        } else {
+            val timePassed = effectiveTargetTimeMillis - todaySunset
+            val unitDuration = nightDurationMillis / 6.0
+            val exactHour = timePassed / unitDuration
+            hourIndex = exactHour.toInt() + 6 // 酉=6, 戌=7, ..., 寅=11
+            subHourProgress = (exactHour - exactHour.toInt()).toFloat() // 小数部分のみ
+        }
+
+        // 和時計の「午一つ」が頂点（0度）に来るように調整
+        val totalJapaneseHours = japaneseTimeLabelsFullCycle.size.toFloat() // 12刻
+        val degreesPerJapaneseHour = 360f / totalJapaneseHours // 各刻の角度 (30度)
+
+        // 現在の和時刻の、卯一つからの相対的な進行度 (0.0 - 11.99...)
+        // 各刻の四等分点の進捗も考慮に入れる
+        // --- 修正箇所 ---
+        // subHourProgress は既に刻の中での 0.0 から 1.0 (次の刻の始まり) の進行度を表している
+        // 例: 卯一つ = 0.0, 卯二つ = 0.25, 卯三つ = 0.5, 卯四つ = 0.75
+        val progressWithinJapaneseHour = subHourProgress
+
+        val overallJapaneseProgress = hourIndex + progressWithinJapaneseHour // 卯一つからの総進行度（刻単位）
+
+        // 「午一つ」の相対的な位置（卯一つから数えて）
+        val goNoKokuIndex = japaneseTimeLabelsFullCycle.indexOf("午").toFloat() // 3.0
+
+        // 最終的な角度 (午一つを0度、時計回り)
+        // (現在の和時刻の進捗 - 午一つまでの進捗 + 全体刻数) % 全体刻数 * 各刻の角度
+        val finalAngleDegrees = ((overallJapaneseProgress - goNoKokuIndex + totalJapaneseHours) % totalJapaneseHours) * degreesPerJapaneseHour
+
+        return Math.toRadians(finalAngleDegrees.toDouble()).toFloat()
+    }
+
+
+    /**
+     * 和時計の時刻文字列を計算する。時間分秒は含まない。
+     * @param currentTime 現在時刻
+     * @return 和時計の時刻文字列 (例: 午一つ)
+     */
+    private fun calculateJapaneseTimeAndSunInfo(currentTime: Calendar): Pair<String, Map<String, Calendar>> {
+        val sunInfo = mutableMapOf<String, Calendar>()
+        val currentSunrise = sunriseTime
+        val currentSunset = sunsetTime
+
+        if (currentSunrise == null || currentSunset == null) {
+            Log.e(TAG, "日の出・日の入り時刻が設定されていません。")
+            return Pair("時刻未設定", sunInfo)
+        }
+
+        sunInfo["sunrise"] = currentSunrise
+        sunInfo["sunset"] = currentSunset
+
+        val currentTimeMillis = currentTime.timeInMillis
+        val dayDurationMillis = currentSunset.timeInMillis - currentSunrise.timeInMillis
+        val nextDaySunrise = Calendar.getInstance().apply {
+            timeInMillis = currentSunrise.timeInMillis + 24 * 3600 * 1000L
+        }
+        val nightDurationMillis = nextDaySunrise.timeInMillis - currentSunset.timeInMillis
+
+        // 現在の時刻が、日の出から日の出までのサイクルでどこに位置するかを判断
+        var effectiveCurrentTimeMillis = currentTimeMillis
+        while (effectiveCurrentTimeMillis < currentSunrise.timeInMillis) {
+            effectiveCurrentTimeMillis += 24 * 3600 * 1000L
+        }
+        while (effectiveCurrentTimeMillis >= nextDaySunrise.timeInMillis) {
+            effectiveCurrentTimeMillis -= 24 * 3600 * 1000L
+        }
+
+
         val dayTimeLabels = arrayOf("卯", "辰", "巳", "午", "未", "申")
         val nightTimeLabels = arrayOf("酉", "戌", "亥", "子", "丑", "寅")
-        val hourNumber = arrayOf("一つ", "二つ", "三つ", "四つ")
 
-        val currentTimeMillis = now.timeInMillis
-        val sunriseMillis = sunriseTime.timeInMillis
-        val sunsetMillis = sunsetTime.timeInMillis
+        var hourName = ""
+        var subHourName = ""
 
-        // 日の出・日の入り時刻（24時間表記）
-        val sunriseStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunriseTime.time)
-        val sunsetStr = SimpleDateFormat("HH:mm", Locale.JAPAN).format(sunsetTime.time)
-        val sunInfo = "日出$sunriseStr-日入$sunsetStr"
+        // まず、現在時刻が昼の刻の範囲内か夜の刻の範囲内かを判断する
+        if (effectiveCurrentTimeMillis >= currentSunrise.timeInMillis && effectiveCurrentTimeMillis < currentSunset.timeInMillis) {
+            // 昼の時間帯 (日の出から日の入り)
+            val timePassedMillis = effectiveCurrentTimeMillis - currentSunrise.timeInMillis
+            val timeUnitMillis = dayDurationMillis / 6.0 // 昼の1刻の長さ
 
-        // 日の出から日の入りまでの日中の期間
-        val daytimeDurationMillis = sunsetMillis - sunriseMillis
+            var timeUnitIndex = (timePassedMillis / timeUnitMillis).toInt()
+            val remainderMillis = timePassedMillis % timeUnitMillis
+            // 浮動小数点誤差対策: わずかな値を加算して丸め誤差を防ぐ
+            var timeSubUnitIndex = ((remainderMillis + 0.001) / (timeUnitMillis / 4.0)).toInt()
 
-        // 翌日の日の出を計算
-        val nextDaySunriseTime = sunriseTime.clone() as Calendar
-        nextDaySunriseTime.add(Calendar.DAY_OF_YEAR, 1)
-        val nextSunriseMillis = nextDaySunriseTime.timeInMillis
+            // 境界値の調整
+            if (timeUnitIndex >= dayTimeLabels.size) timeUnitIndex = dayTimeLabels.size - 1
+            if (timeSubUnitIndex >= hourNumber.size) timeSubUnitIndex = hourNumber.size - 1
+            if (timeUnitIndex < 0) timeUnitIndex = 0
+            if (timeSubUnitIndex < 0) timeSubUnitIndex = 0
 
-        // 日の入りから翌日の日の出までの夜間の期間
-        val nighttimeDurationMillis = nextSunriseMillis - sunsetMillis
-
-        val durationMillis: Long
-        val startMillis: Long
-        val labels: Array<String>
-
-        val isDaytime = currentTimeMillis >= sunriseMillis && currentTimeMillis < sunsetMillis
-
-        if (isDaytime) {
-            // 日中
-            durationMillis = daytimeDurationMillis
-            startMillis = sunriseMillis
-            labels = dayTimeLabels
+            hourName = dayTimeLabels[timeUnitIndex]
+            subHourName = hourNumber[timeSubUnitIndex]
         } else {
-            // 夜間
-            if (currentTimeMillis >= sunsetMillis) {
-                // 今日の日の入り後から明日の日の出前まで
-                durationMillis = nighttimeDurationMillis
-                startMillis = sunsetMillis
-            } else {
-                // 今日の日の出前（つまり昨日の日の入り後から今日の日の出前まで）
-                val previousDaySunsetTime = sunsetTime.clone() as Calendar
-                previousDaySunsetTime.add(Calendar.DAY_OF_YEAR, -1) // 昨日の日の入り
-                val previousSunsetMillis = previousDaySunsetTime.timeInMillis
-                durationMillis = sunriseMillis - previousSunsetMillis
-                startMillis = previousSunsetMillis
-            }
-            labels = nightTimeLabels
+            // 夜の時間帯 (日の入りから翌日の出)
+            val timePassedMillis = effectiveCurrentTimeMillis - currentSunset.timeInMillis
+
+            val timeUnitMillis = nightDurationMillis / 6.0 // 夜の1刻の長さ
+
+            var timeUnitIndex = (timePassedMillis / timeUnitMillis).toInt()
+            val remainderMillis = timePassedMillis % timeUnitMillis
+            // 浮動小数点誤差対策: わずかな値を加算して丸め誤差を防ぐ
+            var timeSubUnitIndex = ((remainderMillis + 0.001) / (timeUnitMillis / 4.0)).toInt()
+
+            // 境界値の調整
+            if (timeUnitIndex >= nightTimeLabels.size) timeUnitIndex = nightTimeLabels.size - 1
+            if (timeSubUnitIndex >= hourNumber.size) timeSubUnitIndex = hourNumber.size - 1
+            if (timeUnitIndex < 0) timeUnitIndex = 0
+            if (timeSubUnitIndex < 0) timeSubUnitIndex = 0
+
+            hourName = nightTimeLabels[timeUnitIndex]
+            subHourName = hourNumber[timeSubUnitIndex]
         }
-
-        if (durationMillis <= 0) {
-            Log.e(TAG, "Duration for Japanese time calculation is zero or negative: $durationMillis")
-            return Pair("時間計算エラー", sunInfo)
-        }
-
-        val timeUnitMillis = durationMillis / 6.0 // 1時間単位（不定時法）
-        val timePassedMillis = currentTimeMillis - startMillis
-
-        // 6つの時間帯のどこにいるか (0-5)
-        var timeUnitIndex = (timePassedMillis / timeUnitMillis).toInt()
-
-        // 4等分のどこにいるか (0-3)
-        val remainderMillis = timePassedMillis % timeUnitMillis
-        var timeSubUnitIndex = (remainderMillis / (timeUnitMillis / 4.0)).toInt()
-
-        // 境界値の調整
-        // durationMillis は double で計算しているため、timeUnitIndex が 6 になることがある。
-        // また、timeSubUnitIndex が 4 になることもあるため、インデックスを範囲内に収める。
-        if (timeUnitIndex >= labels.size) {
-            timeUnitIndex = labels.size - 1
-            timeSubUnitIndex = hourNumber.size - 1
-        }
-        if (timeSubUnitIndex >= hourNumber.size) {
-            timeSubUnitIndex = hourNumber.size - 1
-        }
-        if (timeUnitIndex < 0) {
-            timeUnitIndex = 0
-            timeSubUnitIndex = 0
-        }
-
-        val hourName = labels[timeUnitIndex]
-        val subHourName = hourNumber[timeSubUnitIndex]
 
         return Pair("$hourName$subHourName", sunInfo)
     }
 
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        // ビューがウィンドウからデタッチされたら、Runnableのポストを停止してメモリリークを防ぐ
-        updateHandler.removeCallbacks(updateRunnable)
+    /**
+     * システム時計の数字を描画する。
+     * 和時計の外周に、和時刻の換算位置に基づいて配置する。
+     * @param canvas Canvas
+     * @param centerX 中心X座標
+     * @param centerY 中心Y座標
+     * @param outerRadius システム時計の外周半径 (和時計の外側)
+     * @param sunrise 日の出時刻
+     * @param sunset 日の入り時刻
+     */
+    private fun drawSystemClockMarks(canvas: Canvas, centerX: Float, centerY: Float, outerRadius: Float, sunrise: Calendar, sunset: Calendar) {
+        // 基本のテキストサイズと半径を設定
+        textPaint.textSize = 36f * 0.4f // デフォルトのテキストサイズ
+        val textRadius = outerRadius * 1.05f // デフォルトの描画半径
+
+        textPaint.color = Color.BLACK // システム時刻の文字色を黒に
+
+        val dayDurationMillis = sunset.timeInMillis - sunrise.timeInMillis
+        val nextDaySunriseMillis = sunrise.timeInMillis + 24 * 3600 * 1000L
+        val nightDurationMillis = nextDaySunriseMillis - sunset.timeInMillis
+
+        if (dayDurationMillis <= 0 || nightDurationMillis <= 0) {
+            Log.e(TAG, "日の出・日の入り時間の計算に問題があるため、システム時刻を描画できません。")
+            return
+        }
+
+        // Calendarオブジェクトのコピーを事前に作成
+        val tempCalendar = Calendar.getInstance()
+        tempCalendar.time = sunrise.time // 日の出の日付を基準にする
+
+        // 1時間ごとのシステム時刻の数字を配置
+        for (i in 0 until 24) { // 0時から23時まで
+            textPaint.textSize = 36f * 0.4f // 各ループでリセット (動的なサイズ調整を削除したため固定)
+
+            // tempCalendar をリセットし、指定の時刻を設定
+            tempCalendar.set(Calendar.HOUR_OF_DAY, i)
+            tempCalendar.set(Calendar.MINUTE, 0)
+            tempCalendar.set(Calendar.SECOND, 0)
+            tempCalendar.set(Calendar.MILLISECOND, 0)
+
+            // 設定した時刻が日の出の日付より前なら、日付を1日進める
+            if (tempCalendar.timeInMillis < sunrise.timeInMillis) {
+                tempCalendar.add(Calendar.DATE, 1)
+            }
+            // 設定した時刻が翌日の日の出を過ぎるなら、日付を1日戻す
+            if (tempCalendar.timeInMillis >= nextDaySunriseMillis) {
+                tempCalendar.add(Calendar.DATE, -1)
+            }
+
+            // このシステム時刻が、和時計の円周上のどこに位置するかを計算
+            val angleRadians = getTimeAngleForJapaneseClock(
+                tempCalendar.timeInMillis,
+                sunrise,
+                sunset,
+                dayDurationMillis,
+                nightDurationMillis
+            )
+
+            val displayHour = if (i == 0) "0" else i.toString() // 0時は「0」と表示
+
+            val textX = centerX + textRadius * sin(angleRadians)
+            val textY = centerY - textRadius * cos(angleRadians) + textPaint.textSize / 2.5f // Y軸補正
+            canvas.drawText(displayHour, textX, textY, textPaint)
+
+            // デバッグログ追加
+            val angleDegrees = Math.toDegrees(angleRadians.toDouble()).toFloat()
+            Log.d(TAG, "System Hour ${displayHour}: Angle = ${String.format("%.2f", angleDegrees)} degrees")
+        }
+
+        textPaint.textSize = 36f // 元に戻す
+        textPaint.color = Color.WHITE // 和時刻の文字色に戻す
+    }
+
+
+    /**
+     * 和時計の時針を描画する。
+     * 不定時法に従って動く針。
+     * @param canvas Canvas
+     * @param centerX 中心X座標
+     * @param centerY 中心Y座標
+     * @param length 針の長さ
+     * @param currentTime 現在時刻
+     * @param sunrise 日の出時刻
+     * @param sunset 日の入り時刻
+     */
+    private fun drawJapaneseHourHand(canvas: Canvas, centerX: Float, centerY: Float, length: Float, currentTime: Calendar, sunrise: Calendar, sunset: Calendar) {
+        val dayDurationMillis = sunset.timeInMillis - sunrise.timeInMillis
+        val nextDaySunrise = Calendar.getInstance().apply { timeInMillis = sunrise.timeInMillis + 24 * 3600 * 1000L }
+        val nightDurationMillis = nextDaySunrise.timeInMillis - sunset.timeInMillis
+
+        if (dayDurationMillis <= 0 || nightDurationMillis <= 0) {
+            Log.e(TAG, "日の出・日の入り時間の計算に問題があるため、和時計の針を描画できません。")
+            return
+        }
+
+        // 現在時刻が和時計のどこに位置するかを角度（ラジアン）で計算
+        // getTimeAngleForJapaneseClock は午の刻を0度（頂点）として角度を返す
+        val angleRadians = getTimeAngleForJapaneseClock(currentTime.timeInMillis, sunrise, sunset, dayDurationMillis, nightDurationMillis)
+
+        // 針の描画は通常のdrawHandを使用
+        val angleDegrees = Math.toDegrees(angleRadians.toDouble()).toFloat()
+        Log.d(TAG, "Japanese Hour Hand Angle: ${String.format("%.2f", angleDegrees)} degrees for ${SimpleDateFormat("HH:mm:ss", Locale.US).format(currentTime.time)}")
+        drawHand(canvas, centerX, centerY, length, angleDegrees, handPaint)
+    }
+
+    /**
+     * 針を描画するヘルパー関数。
+     * @param canvas Canvas
+     * @param centerX 中心X座標
+     * @param centerY 中心Y座標
+     * @param length 針の長さ
+     * @param angleDegrees 針の角度 (0度が上、時計回りに増加)
+     * @param paint 針のペイント
+     */
+    private fun drawHand(canvas: Canvas, centerX: Float, centerY: Float, length: Float, angleDegrees: Float, paint: Paint) {
+        val angleRadians = Math.toRadians(angleDegrees.toDouble()).toFloat()
+        val endX = centerX + length * sin(angleRadians)
+        val endY = centerY - length * cos(angleRadians) // Y軸は上方向が負なので、cosの符号を反転
+
+        canvas.drawLine(centerX, centerY, endX, endY, paint)
     }
 }
