@@ -1,0 +1,15 @@
+# v3.0 (6)
+
+## Feature
+
+### Widget   
+* Japanese calendar  
+* Japanese-style month names  
+* Gregorian date  
+* Japanese clock time (seasonal time)  
+* 24 solar terms  
+* Chinese zodiac signs    
+
+###  GUI  
+* Japanese clock (seasonal time clock)  
+* Latitude, Longitude setting  
