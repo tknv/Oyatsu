@@ -551,8 +551,8 @@ class JapaneseClockView @JvmOverloads constructor(
      */
     private fun drawSystemClockMarks(canvas: Canvas, centerX: Float, centerY: Float, outerRadius: Float, sunrise: Calendar, sunset: Calendar) {
         // 基本のテキストサイズと半径を設定
-        textPaint.textSize = 36f * 0.4f // デフォルトのテキストサイズ
-        val textRadius = outerRadius * 1.05f // デフォルトの描画半径
+        textPaint.textSize = 36f * 0.4f // 0.4 デフォルトのテキストサイズ
+        val textRadius = outerRadius * 0.9f // 1.05 デフォルトの描画半径
 
         textPaint.color = Color.BLACK // システム時刻の文字色を黒に
 
@@ -571,7 +571,7 @@ class JapaneseClockView @JvmOverloads constructor(
 
         // 1時間ごとのシステム時刻の数字を配置
         for (i in 0 until 24) { // 0時から23時まで
-            textPaint.textSize = 36f * 0.4f // 各ループでリセット (動的なサイズ調整を削除したため固定)
+            textPaint.textSize = 36f * 0.8f // 0.4 各ループでリセット (動的なサイズ調整を削除したため固定)
 
             // tempCalendar をリセットし、指定の時刻を設定
             tempCalendar.set(Calendar.HOUR_OF_DAY, i)

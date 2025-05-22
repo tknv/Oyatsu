@@ -7,7 +7,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -16,8 +15,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Oyatsu">
         <meta-data
-            android:name="workmanager-init"
-            android:value="false" />
+            android:name="androidx.work.impl.WorkManagerInitializer"
+            tools:node="remove" />
 
         <receiver
             android:name=".Oyatsu"
@@ -28,29 +27,36 @@
                 <action android:name="lab.rreedd.oyatsu.ACTION_ALARM_UPDATE" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="lab.rreedd.oyatsu.ACTION_LOCATION_UPDATED" />
-                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="lab.rreedd.oyatsu.ACTION_WIDGET_CLICK_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/oyatsu_info" />
         </receiver>
 
+        <receiver
+            android:name=".ScreenOnReceiver"
+            android:exported="true"> <intent-filter>
+            <action android:name="android.intent.action.SCREEN_ON" />
+        </intent-filter>
+        </receiver>
+
         <activity
             android:name=".LocationInputActivity"
             android:exported="true"
             android:label="@string/title_activity_location_input">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="geo" />
@@ -62,15 +68,6 @@
             </intent-filter>
         </activity>
 
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            tools:node="merge">
-            <meta-data
-                android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup" />
-        </provider>
     </application>
 
 </manifest>

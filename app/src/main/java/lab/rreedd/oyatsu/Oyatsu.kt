@@ -21,6 +21,7 @@ private const val PREFS_NAME = "lab.rreedd.oyatsu.OyatsuWidgetPrefs"
 private const val PREF_LATITUDE_PREFIX = "latitude_"
 private const val PREF_LONGITUDE_PREFIX = "longitude_"
 private const val ACTION_ALARM_UPDATE = "lab.rreedd.oyatsu.ACTION_ALARM_UPDATE"
+private const val ACTION_WIDGET_CLICK_UPDATE = "lab.rreedd.oyatsu.ACTION_WIDGET_CLICK_UPDATE"
 private const val DEFAULT_LATITUDE = 35.681444600642514 // デフォルト緯度（東京駅） - 位置情報が取れない場合に使用
 private const val DEFAULT_LONGITUDE = 139.76579265965165 // デフォルト経度（東京駅）
 
@@ -104,41 +105,48 @@ class Oyatsu : AppWidgetProvider() {
             val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
             if (appWidgetIds != null) {
                 Log.d(TAG, "Received ACTION_APPWIDGET_UPDATE for IDs: ${appWidgetIds.joinToString()}")
-                // This will call our onUpdate method
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                onUpdate(context, appWidgetManager, appWidgetIds)
+                /* // This will call our onUpdate method
                 super.onReceive(context, intent) // Important to let the base class handle standard updates
                 // Explicitly update based on potentially new coordinates
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 appWidgetIds.forEach { appWidgetId ->
-                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
-                }
+                     proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+                */
+                     }
                 return // Consume this action
+            /*  } else if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                // Handle case where a single appWidgetId is provided (e.g. from config activity)
+                Log.d(TAG, "Received ACTION_APPWIDGET_UPDATE for single ID: $appWidgetId")
+                super.onReceive(context, intent) // Let base class handle standard onUpdate calls
+                // proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+                return
             }
+            */
         } else {
             super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
         }
+
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val thisAppWidget = ComponentName(context.packageName, javaClass.name)
+        val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
 
         when (action) {
             ACTION_ALARM_UPDATE -> {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                     Log.d(TAG, "Received custom alarm for widget ID: $appWidgetId (likely from SunriseWidgetAlarmUtils)")
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    updateAppWidgetInternal(today, context, appWidgetManager, appWidgetId, false) // Regular update
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId) // Reschedule
+                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = false)
                 } else {
                     Log.w(TAG, "Received alarm intent without valid widget ID, updating all.")
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val thisAppWidget = ComponentName(context.packageName, javaClass.name)
-                    val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
                     appWidgetIds.forEach { id ->
                         proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+                        logAllJapaneseTimesForToday(context, id) // Log all times due to time/date change
                     }
                 }
             }
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_DATE_CHANGED, Intent.ACTION_TIMEZONE_CHANGED -> {
                 Log.d(TAG, "Received $action. Rescheduling/recalculating for all widgets.")
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val thisAppWidget = ComponentName(context.packageName, javaClass.name)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
                 appWidgetIds.forEach { id ->
                     Log.d(TAG, "Processing widget ID: $id due to $action")
                     proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
@@ -148,24 +156,25 @@ class Oyatsu : AppWidgetProvider() {
             LocationInputActivity.ACTION_LOCATION_UPDATED -> {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                     Log.d(TAG, "Received location updated for widget ID: $appWidgetId. Forcing recalculation.")
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
                     proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
                     logAllJapaneseTimesForToday(context, appWidgetId) // Log all times
                 }
             }
             Intent.ACTION_SCREEN_ON -> { // 画面ON時に更新をトリガー
                 Log.d(TAG, "Screen ON detected. Triggering widget update for all widgets.")
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                val thisAppWidget = ComponentName(context.packageName, javaClass.name)
-                val appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget)
                 appWidgetIds.forEach { id ->
-                    updateAppWidgetInternal(today, context, appWidgetManager, id, false)
-                    SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, id)
+                    onUpdate(context, appWidgetManager, appWidgetIds)
                 }
             }
-            else -> {
-                super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
+            ACTION_WIDGET_CLICK_UPDATE -> { // ウィジェットクリック時 (新しいカスタムアクション)
+                // これらのアクションがトリガーされたら、現在アクティブな全てのウィジェットを更新する
+                Log.i(TAG, "${intent.action} detected. Triggering onUpdate for all widgets.")
+                // onUpdate を直接呼び出すことで、ウィジェットのUIを即座に更新する
+                onUpdate(context, appWidgetManager, appWidgetIds)
             }
+//            else -> {
+//                super.onReceive(context, intent) // Essential for other actions like onUpdate, onDeleted etc.
+//            }
         }
     }
 
@@ -228,6 +237,39 @@ class Oyatsu : AppWidgetProvider() {
             japaneseTimeText = resultPair.first
             sunTime = resultPair.second
             Log.d(TAG, "Widget $appWidgetId: $japaneseTimeText (sunTime: $sunTime)")
+            // ★ウィジェット全体をタップしたら更新をトリガーするPendingIntentを設定
+            val selfUpdateIntent = Intent(context, Oyatsu::class.java).apply {
+                action = ACTION_WIDGET_CLICK_UPDATE
+                // このインテントをブロードキャストする際に、どのウィジェットがクリックされたかを識別するために
+                // putExtraでappWidgetIdsを渡すこともできるが、このケースでは onReceive で
+                // 全てのウィジェットを更新するので必須ではない。しかし、ベストプラクティスとして渡す。
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+                // PendingIntent をウィジェットIDごとにユニークにするためにデータURIを追加
+                data = Uri.parse("oyatsu://widget/click/$appWidgetId")
+            }
+            val selfUpdatePendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId, // ユニークなリクエストコード
+                selfUpdateIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+            )
+            views.setOnClickPendingIntent(R.id.widget_root_layout, selfUpdatePendingIntent) // ウィジェット全体のレイアウトに設定
+
+            // ★時刻表示部分をタップしたら設定画面を開くPendingIntentを設定
+            val configIntent = Intent(context, LocationInputActivity::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_CONFIGURE // 設定画面を開くためのアクション
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                data = Uri.parse("oyatsu://widget/config/$appWidgetId") // ユニークなURI
+            }
+            /* val configPendingIntent = PendingIntent.getActivity(
+                context,
+                appWidgetId + 1000, // 他のPendingIntentとリクエストコードが被らないようにオフセットを追加
+                configIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+            )
+            views.setOnClickPendingIntent(R.id.text_jikoku_solar_term_sixty_cycle, configPendingIntent) // 時刻表示のTextViewに設定
+            */
+
         } else {
             Log.w(TAG, "Widget $appWidgetId: Failed to calculate sunrise/sunset. Using default text.")
             japaneseTimeText = context.getString(R.string.location_not_set_tap_to_set)
@@ -570,30 +612,41 @@ class Oyatsu : AppWidgetProvider() {
 
 // WidgetUpdateReceiver および ScreenOnReceiver は変更なし
 // ...
-class WidgetUpdateReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent?) {
-        val appWidgetId = intent?.getIntExtra("appWidgetId", -1) ?: -1
-        if (appWidgetId != -1) {
-            Log.i("WidgetUpdateReceiver", "Widget $appWidgetId update triggered.")
-            val today = Calendar.getInstance()
-            SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
-//            Oyatsu.updateAppWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
-        }
-    }
-}
-
+//class WidgetUpdateReceiver : BroadcastReceiver() {
+//    override fun onReceive(context: Context, intent: Intent?) {
+//        val appWidgetId = intent?.getIntExtra("appWidgetId", -1) ?: -1
+//        if (appWidgetId != -1) {
+//            Log.i("WidgetUpdateReceiver", "Widget $appWidgetId update triggered.")
+//            val today = Calendar.getInstance()
+//            proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
+//        }
+//    }
+//}
+//
 class ScreenOnReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == Intent.ACTION_SCREEN_ON) {
-            Log.i("ScreenOnReceiver", "Screen ON detected. Triggering widget update.")
+            Log.i("ScreenOnReceiver", "Screen ON detected. Triggering widget update via AppWidgetProvider (ACTION_APPWIDGET_UPDATE).")
+
             val appWidgetManager = AppWidgetManager.getInstance(context)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(
-                ComponentName(context, Oyatsu::class.java)
-            )
-            val today = Calendar.getInstance()
-            appWidgetIds.forEach { appWidgetId ->
-                SunriseWidgetAlarmUtils.scheduleNextUpdate(today, context, appWidgetId)
+            // Oyatsu::class.java は、実際の AppWidgetProvider のクラス名に置き換えてください
+            val componentName = ComponentName(context, Oyatsu::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+
+            if (appWidgetIds == null || appWidgetIds.isEmpty()) {
+                Log.d("ScreenOnReceiver", "No widget IDs found for ${componentName.className}")
+                return
             }
+
+            // AppWidgetProvider (Oyatsu) に標準の更新インテントを送信します。
+            // これにより、Oyatsu の onReceive がトリガーされ、既存のロジックで
+            // proceedWithWidgetUpdate が forceSunriseRecalc = true で呼び出されます。
+            val updateIntent = Intent(context, Oyatsu::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
+            }
+            context.sendBroadcast(updateIntent)
+            Log.d("ScreenOnReceiver", "Sent ACTION_APPWIDGET_UPDATE for IDs: ${appWidgetIds.joinToString()}")
         }
     }
 }
