@@ -29,6 +29,10 @@ misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 
+# vscode
+.vscode/
+.vscode-test/
+
 # Keystore files
 *.jks
 *.keystore
@@ -40,5 +44,5 @@ google-services.json
 *.hprof
 
 # まだFdrrodiにリリースされていないので
-Privacy policy.md
-README.md
+# Privacy policy.md
+# README.md

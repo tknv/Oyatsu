@@ -1,0 +1,4 @@
+# v3.1 (7)
+
+## Fix  
+* Updating Widget more robust  
