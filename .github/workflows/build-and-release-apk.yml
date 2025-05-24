@@ -6,7 +6,7 @@ on:
       branch:
         description: 'Branch to build'
         required: true
-        default: 'develop'
+        default: 'main'
   push:
     tags:
       - 'v*'  # バージョンタグ付きのプッシュ時に実行
@@ -30,35 +30,30 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v2
 
-      - name: Set Build Tools Version
-        run: echo "BUILD_TOOLS_VERSION=35.0.0" >> $GITHUB_ENV
-  
       - name: Install Build Tools
         run: sdkmanager --install "build-tools;35.0.0"
 
-      - name: Check cp command
-        run: which cp
-
       - name: Set PATH for Build Tools
-        run: echo "export PATH=\$PATH:\$ANDROID_HOME/build-tools/35.0.0" >> $GITHUB_ENV
+        run: echo "export PATH=\$ANDROID_HOME/build-tools/35.0.0:\$PATH" >> $GITHUB_ENV
 
       - name: Build with Gradle
         run: ./gradlew assembleRelease
 
-      - name: Sign Android release
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.OYATSU }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "35.0.0"
-          PATH: "$ANDROID_HOME/build-tools/35.0.0:$PATH"
+      - name: Create keystore file
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
+
+      - name: Sign APK manually
+        run: |
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+          --ks keystore.jks \
+          --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+          --ks-pass pass:${{ secrets.KEY_STORE_PASSWORD }} \
+          --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+          --out app/build/outputs/apk/release/app-release-signed.apk \
+          app/build/outputs/apk/release/app-release.apk
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/app-release.apk
+          files: app/build/outputs/apk/release/app-release-signed.apk
           token: ${{ secrets.GITHUB_TOKEN }}
