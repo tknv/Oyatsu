@@ -66,14 +66,17 @@ jobs:
       - name: Create Git Tag if missing
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: |
+          TAG_NAME="v$(date +'%Y.%m.%d-%H%M%S')"
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions@github.com"
-          git tag v2025.05.24-141020
-          git push origin v2025.05.24-1
-
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+      
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/app-release-signed.apk
-          tag_name: v2025.05.24-1
+          tag_name: ${{ env.TAG_NAME }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
