@@ -45,12 +45,12 @@ jobs:
       - name: Sign APK manually
         run: |
           $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
-          --ks keystore.jks \
-          --ks-key-alias ${{ secrets.KEY_ALIAS }} \
-          --ks-pass pass:${{ secrets.KEY_STORE_PASSWORD }} \
-          --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-          --out app/build/outputs/apk/release/app-release-signed.apk \
-          app/build/outputs/apk/release/app-release.apk
+            --ks keystore.jks \
+            --ks-pass pass:${{ secrets.KEY_STORE_PASSWORD }} \
+            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
+            --out app/build/outputs/apk/release/app-release-signed.apk \
+            app/build/outputs/apk/release/app-release.apk
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
