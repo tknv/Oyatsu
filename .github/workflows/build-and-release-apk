@@ -1,5 +1,7 @@
 name: Build and Release APK
+
 on:
+  workflow_dispatch: 
   push:
     tags:
       - 'v*'  # バージョンタグ付きのプッシュ時に実行
