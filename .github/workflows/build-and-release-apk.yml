@@ -36,6 +36,9 @@ jobs:
       - name: Install Build Tools
         run: sdkmanager --install "build-tools;35.0.0"
 
+      - name: Check cp command
+        run: which cp
+
       - name: Set PATH for Build Tools
         run: echo "export PATH=\$PATH:\$ANDROID_HOME/build-tools/35.0.0" >> $GITHUB_ENV
 
