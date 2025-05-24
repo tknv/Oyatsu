@@ -55,7 +55,7 @@ jobs:
             --ks-pass pass:${{ secrets.KEY_STORE_PASSWORD }} \
             --ks-key-alias ${{ secrets.OYATSU }} \
             --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
