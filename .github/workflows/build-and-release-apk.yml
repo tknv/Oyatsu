@@ -23,13 +23,12 @@ jobs:
         uses: android-actions/setup-android@v2
 
       - name: Install Build Tools
-        run: sdkmanager --install "build-tools;35.0.0"
+        run: |
+          yes | sdkmanager --install "build-tools;35.0.0"
+          ls -l $ANDROID_HOME/build-tools/
 
       - name: Set PATH for Build Tools
-        run: echo "$ANDROID_HOME/build-tools/35.0.0" >> $GITHUB_PATH
-
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease
+        run: echo "export PATH=\$PATH:\$ANDROID_HOME/build-tools/35.0.0" >> $GITHUB_ENV
 
       - name: Sign Android release
         uses: r0adkll/sign-android-release@v1
@@ -39,9 +38,8 @@ jobs:
           alias: ${{ secrets.OYATSU }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
-      - name: Set Build Tools Version
-        run: echo "BUILD_TOOLS_VERSION=35.0.0" >> $GITHUB_ENV
-
+        env:
+          BUILD_TOOLS_VERSION: "35.0.0"
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
