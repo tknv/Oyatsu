@@ -47,7 +47,7 @@ jobs:
           $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
             --ks keystore.jks \
             --ks-pass pass:${{ secrets.KEY_STORE_PASSWORD }} \
-            --ks-key-alias ${{ secrets.KEY_ALIAS }} \
+            --ks-key-alias ${{ secrets.OYATSU }} \
             --key-pass pass:${{ secrets.KEY_PASSWORD }} \
             app/build/outputs/apk/release/app-release.apk
 
