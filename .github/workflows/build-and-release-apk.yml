@@ -72,6 +72,12 @@ jobs:
           git tag $TAG_NAME
           git push origin $TAG_NAME
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+
+      - name: Verify APK output before upload
+        run: ls -l app/build/outputs/apk/release/
+
+      - name: Rename signed APK
+        run: mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release-signed.apk
       
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
