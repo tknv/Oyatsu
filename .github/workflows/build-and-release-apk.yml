@@ -56,6 +56,18 @@ jobs:
             --ks-key-alias ${{ secrets.OYATSU }} \
             --key-pass pass:${{ secrets.KEY_PASSWORD }} \
             app/build/outputs/apk/release/app-release-unsigned.apk
+            
+      - name: Get tag if exists
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Create Git Tag if missing
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: |
+          TAG_NAME="v$(date +'%Y.%m.%d-%H%M%S')"
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
 
       - name: Upload APK to GitHub Release
         uses: softprops/action-gh-release@v2
