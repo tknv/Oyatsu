@@ -89,10 +89,14 @@ AATとは、"GPS-tracking application for sportive activities, with emphasis on 
  <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/3.png" width="50%">  
 
 
-## アプリの入手先
+## アプリの入手先  
 
-- おやつはアンドロイドのウィジェット アプリです。- このサイトの [release page](https://github.com/tknv/oyatsu/releases) から最新版をダウンロードしてインストール  
-無料、広告なし。
+おやつはアンドロイドのウィジェット アプリです。 無料、広告なし。
+- F-Droidからダウンロード [F-Droid](https://f-droid.org/packages/lab.rredd.oyatsu/).  
+<a href="https://f-droid.org/packages/lab.rreedd.oyatsu/" target="_blank">
+	<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
+</a>    
+- ここサイトの [release page](https://github.com/tknv/oyatsu/releases) から最新版をダウンロードしてインストール  
 
 
 ## ライセンス
