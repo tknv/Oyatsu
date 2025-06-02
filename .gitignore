@@ -1,4 +1,4 @@
-# .gitignore
+.gitignore
 # Gradle files
 .gradle/
 build/
