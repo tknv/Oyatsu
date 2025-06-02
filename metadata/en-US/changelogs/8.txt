@@ -1,0 +1,5 @@
+# v3.2 (8)
+
+## Fix  
+* Remove ACCESS_NETWORK_STATE and FOREGROUND_SERVICE permissions.
+
