@@ -1,24 +1,21 @@
 name: GitHub Events Telegram Notifications
 
 on:
-  # Issue関連のイベント
   issues:
     types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled, milestoned, demilestoned, transferred, locked, unlocked]
   issue_comment:
-    types: [created] # Issueコメント作成時
+    types: [created]
 
-  # タグ関連のイベント
   push:
     tags:
-      - '*' # 全てのタグのプッシュを監視
+      - '*' 
 
-  # プルリクエスト関連のイベント
   pull_request:
     types: [opened, reopened, closed, assigned, unassigned, labeled, unlabeled, synchronize, edited, review_requested, review_request_removed]
   pull_request_review:
-    types: [submitted] # プルリクエストレビュー提出時
+    types: [submitted]
   pull_request_review_comment:
-    types: [created] # プルリクエストレビューコメント作成時
+    types: [created]
 
 jobs:
   send_notification:
@@ -58,7 +55,7 @@ jobs:
               MESSAGE+="詳細: [こちら](${COMMENT_URL})"
               ;;
             push)
-              TAG_NAME="${{ github.event.ref }}"
+              TAG_NAME="${GITHUB_REF#refs/tags/}"
               MESSAGE="🏷️ *新しいタグがプッシュされました* 🏷️\n"
               MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
               MESSAGE+="タグ: `${TAG_NAME}`\n"
@@ -82,7 +79,7 @@ jobs:
               PR_URL="${{ github.event.pull_request.html_url }}"
               REVIEW_STATE="${{ github.event.review.state }}"
               MESSAGE="👀 *プルリクエストレビューが提出されました* 👀\n"
-              MESSAGE+="リポジリポ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
+              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
               MESSAGE+="PR #${PR_NUMBER}: *${PR_TITLE}*\n"
               MESSAGE+="レビュー者: ${ACTOR}\n"
               MESSAGE+="ステータス: *${REVIEW_STATE}*\n"
@@ -102,7 +99,7 @@ jobs:
               MESSAGE+="詳細: [こちら](${COMMENT_URL})"
               ;;
             *)
-              MESSAGE="未定義のGitHubイベント: ${{ github.event_name }}"
+              MESSAGE="未定義のGitHubイベント: ${EVENT_NAME}"
               ;;
           esac
 
@@ -116,5 +113,5 @@ jobs:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: ${{ steps.message_generator.outputs.message }}
-          parse_mode: markdown # Markdown形式でメッセージをパース
-        if: success() || failure() # 成功/失敗にかかわらず通知
+          parse_mode: markdown
+        if: success() || failure()

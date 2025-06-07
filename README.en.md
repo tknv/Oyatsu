@@ -1,5 +1,6 @@
 
 ![Logo](doc/144icon.png)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tknv/Oyatsu)  
 
 # Oyatsu 
 
@@ -9,6 +10,17 @@ What is the time for Oyatsu? What is the afternoon? What is the ox 3 hours?
 This is what it called because it was eaten at "Yatutoki" (that is, around 3pm in modern times). In modern times, it is sometimes called "Oyatsu at 3 o'clock."  
 During the Edo period, dawn was Ake-Muttsu, or Yattsu: Oyatsu time was Futatsu from Ake-Muttsu is Yattsu. Hiru-Yattsu is Hitsuji-no-Koku. That is/was the time of Oyatsu. The afternoon in Uma-no-Koku to Ne-no-Koku.
 Dawn is a U-Hitotsu.
+
+## Where to get the app  
+
+Free, no ads. 
+
+- Oyatsu is a widget app for Android. You can download it from [F-Droid](https://f-droid.org/packages/lab.rredd.oyatsu/).  
+<a href="https://f-droid.org/packages/lab.rreedd.oyatsu/" target="_blank">
+	<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
+</a>   
+
+- Download from [release page](https://github.com/tknv/oyatsu/releases) then install    
 
 ## Function  
 
@@ -93,15 +105,6 @@ Applying this will display the Japanese clock time at that point.
 
 Press and hold the home screen to display a pop-up. If you press widget, a widget selection screen will appear, so drag and drop Oyatsu to the home screen.   
  <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/3.png" width="50%">  
-
-
-## Where to get the app  
-
-- Oyatsu is a widget app for Android. You can download it from [F-Droid](https://f-droid.org/packages/lab.rredd.oyatsu/).  
-<a href="https://f-droid.org/packages/lab.rreedd.oyatsu/" target="_blank">
-	<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
-</a>  
-Free, no ads.
 
 
 ## license  

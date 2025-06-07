@@ -1,5 +1,6 @@
 
 ![Logo](doc/144icon.png)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tknv/Oyatsu)  
 
 # おやつ
 
@@ -22,6 +23,17 @@
 和時計時刻は位置情報:経度緯度から計算して表示します.  
 位置情報を設定しない場合(インストールしたまま)は東京駅(`35.6895, 139.6917`)を使います.  
 
+## 使い方
+
+おやつはアンドロイドのウィジェット アプリです。 無料、広告なし。 
+- F-Droidからダウンロード [F-Droid](https://f-droid.org/packages/lab.rredd.oyatsu/).  
+
+<a href="https://f-droid.org/packages/lab.rreedd.oyatsu/" target="_blank">
+	<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
+</a>  
+      
+- ここサイトの [release page](https://github.com/tknv/oyatsu/releases) から最新版をダウンロードしてインストール  
+
 
 ## スクリーンショット
 
@@ -35,10 +47,6 @@
 
   - アプリケーションでの表示  
  <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/8.png" width="25%">  
-
-## 使い方
-
-- このサイトの [release page](https://github.com/tknv/oyatsu/releases) から最新版をダウンロードしてインストール
 
 ### 流れ  
 - インストール
