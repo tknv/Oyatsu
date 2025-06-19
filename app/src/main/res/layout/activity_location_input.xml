@@ -4,67 +4,101 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:padding="16dp"
     tools:context=".LocationInputActivity">
 
+    <!-- Input Section with proper spacing and constraints -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingBottom="8dp">
+        android:paddingBottom="16dp"
+        android:background="?android:attr/selectableItemBackground">
+
+        <!-- Latitude Input -->
         <TextView
-            android:layout_margin="2dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
             android:text="@string/label_latitude"
-            android:textSize="14sp" />
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary" />
 
         <EditText
             android:id="@+id/editTextLatitude"
-            android:layout_margin="2dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
             android:hint="@string/hint_latitude"
             android:inputType="numberDecimal|numberSigned"
-            android:minHeight="30dp" />
+            android:minHeight="48dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="?android:attr/editTextBackground"
+            android:textSize="16sp"
+            android:maxLines="1"
+            android:imeOptions="actionNext" />
 
+        <!-- Longitude Input -->
         <TextView
-            android:layout_margin="2dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginBottom="4dp"
             android:text="@string/label_longitude"
-            android:textSize="14sp" />
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary" />
 
         <EditText
             android:id="@+id/editTextLongitude"
-            android:layout_margin="2dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp"
             android:hint="@string/hint_longitude"
             android:inputType="numberDecimal|numberSigned"
-            android:minHeight="30dp" />
+            android:minHeight="48dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="?android:attr/editTextBackground"
+            android:textSize="16sp"
+            android:maxLines="1"
+            android:imeOptions="actionDone" />
 
+        <!-- Apply Button -->
         <Button
             android:id="@+id/buttonApply"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
-            android:layout_marginTop="2dp"
-            android:text="@string/button_apply" />
-
-<!--        <TextView-->
-<!--            android:layout_width="match_parent"-->
-<!--            android:layout_height="wrap_content"-->
-<!--            android:layout_marginTop="16dp"-->
-<!--            android:text="@string/info_share_from_maps"-->
-<!--            android:gravity="center_horizontal"-->
-<!--            android:textSize="5sp"/>-->
+            android:minWidth="120dp"
+            android:minHeight="48dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:text="@string/button_apply"
+            android:textSize="16sp"
+            android:textAllCaps="false"
+            style="?android:attr/buttonStyleSmall" />
 
     </LinearLayout>
 
+    <!-- Divider for visual separation -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginBottom="16dp"
+        android:background="?android:attr/dividerHorizontal" />
+
+    <!-- Japanese Clock View - takes remaining space -->
     <lab.rreedd.oyatsu.JapaneseClockView
         android:id="@+id/japaneseClockView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" /> </LinearLayout>
+        android:layout_weight="1"
+        android:layout_marginTop="8dp" />
+
+</LinearLayout>
