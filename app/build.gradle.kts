@@ -12,8 +12,8 @@ android {
         applicationId = "lab.rreedd.oyatsu"
         minSdk = 21
         targetSdk = 35
-        versionCode = 9
-        versionName = "3.3"
+        versionCode = 10
+        versionName = "3.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -59,7 +59,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.support.annotations)
     implementation(libs.androidx.annotation)
-//    testImplementation(libs.jupiter.junit.jupiter.params)
+    implementation(libs.material)
+    //    testImplementation(libs.jupiter.junit.jupiter.params)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.core)
     testImplementation(libs.junit.junit)

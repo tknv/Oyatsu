@@ -1,0 +1,9 @@
+# v3.4 (10)
+
+## Fix  
+* Layout broken at Pixel 8A  
+
+## Change  
+* Apply Material design     
+
+

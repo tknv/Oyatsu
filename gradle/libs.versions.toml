@@ -19,6 +19,8 @@ robolectric = "4.14.1"
 core = "1.6.1"
 junitJunit = "4.13.2"
 coreKtxVersion = "1.6.1"
+material = "1.12.0"
+constraintlayout = "2.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -46,6 +48,8 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 androidx-core = { group = "androidx.test", name = "core", version.ref = "core" }
 junit-junit = { group = "junit", name = "junit", version.ref = "junitJunit" }
 core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

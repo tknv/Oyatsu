@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
+import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -95,20 +96,6 @@ class JapaneseClockView @JvmOverloads constructor(
         isAntiAlias = true
     }
 
-    /* 背景色の描画は削除するため、以下のPaintは不要
-    private val dayBackgroundPaint = Paint().apply {
-        color = Color.parseColor("#FFA500") // 橙色
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-
-    private val nightBackgroundPaint = Paint().apply {
-        color = Color.parseColor("#4169E1") // 藍色
-        style = Paint.Style.FILL
-        isAntiAlias = true
-    }
-    */
-
     private val dotPaint = Paint().apply {
         color = Color.GRAY // 点の色
         textSize = 20f
@@ -128,7 +115,6 @@ class JapaneseClockView @JvmOverloads constructor(
     private val japaneseTimeLabelsFullCycle = arrayOf(
         "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑", "寅"
     )
-
 
     init {
         // ビューがアタッチされたら更新を開始
@@ -184,13 +170,6 @@ class JapaneseClockView @JvmOverloads constructor(
         val currentSunrise = sunInfo["sunrise"]
         val currentSunset = sunInfo["sunset"]
 
-        /* 背景の描画は削除
-        if (currentSunrise != null && currentSunset != null) {
-            // 背景の描画 (日の出から日の入りまでを橙色、日の入りから翌日の出までを藍色)
-            drawClockBackground(canvas, centerX, centerY, radius, currentSunrise, currentSunset)
-        }
-        */
-
         // 時計の円を描画 (背景の上に描画)
         canvas.drawCircle(centerX, centerY, radius, linePaint)
 
@@ -212,64 +191,6 @@ class JapaneseClockView @JvmOverloads constructor(
             drawJapaneseHourHand(canvas, centerX, centerY, radius * 0.65f, currentTime, currentSunrise, currentSunset)
         }
     }
-
-    /* drawClockBackground 関数は削除
-    private fun drawClockBackground(canvas: Canvas, centerX: Float, centerY: Float, radius: Float, sunrise: Calendar, sunset: Calendar) {
-        val rectF = RectF(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
-
-        // 日の出・日の入り時刻を24時間サイクルでのミリ秒に変換
-        // 今日の0時0分0秒のタイムスタンプを取得
-        val todayMidnight = Calendar.getInstance().apply {
-            time = sunrise.time // 日の出と同じ日付に設定 (日付部分だけ利用)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        val sunriseMillisOfDay = sunrise.timeInMillis - todayMidnight
-        var sunsetMillisOfDay = sunset.timeInMillis - todayMidnight
-
-        // 日の入りが日の出より前の場合は、翌日の日の入りとして扱う (日付をまたぐ場合)
-        if (sunsetMillisOfDay < sunriseMillisOfDay) {
-            sunsetMillisOfDay += 24 * 3600 * 1000L
-        }
-
-        val TOTAL_MILLIS_IN_DAY = 24 * 3600 * 1000L
-
-        // システム時計の角度 (12時が0度、時計回り) を計算するヘルパー
-        // 0時/24時が下(180度)、12時が上(0度)
-        val getSystemClockAngleDegrees = { millisFromMidnight: Long ->
-            val progress = millisFromMidnight.toFloat() / TOTAL_MILLIS_IN_DAY.toFloat()
-            (progress * 360f - 180f + 360f) % 360f
-        }
-
-        val sunriseAngleDegreesClock = getSystemClockAngleDegrees(sunriseMillisOfDay)
-        val sunsetAngleDegreesClock = getSystemClockAngleDegrees(sunsetMillisOfDay)
-
-        // CanvasのdrawArcの角度に変換 (3時が0度、反時計回り)
-        // システム時計の0度（上）がCanvasの270度、システム時計の90度（右）がCanvasの0度
-        val canvasStartAngleDay = (sunriseAngleDegreesClock - 90f + 360f) % 360f
-        val canvasEndAngleDay = (sunsetAngleDegreesClock - 90f + 360f) % 360f
-
-        // 昼の掃引角度を計算
-        var sweepAngleDay = if (canvasEndAngleDay >= canvasStartAngleDay) {
-            canvasEndAngleDay - canvasStartAngleDay
-        } else {
-            360f - canvasStartAngleDay + canvasEndAngleDay
-        }
-        if (sweepAngleDay < 0) sweepAngleDay += 360f
-
-        // 昼の背景 (橙色)
-        canvas.drawArc(rectF, canvasStartAngleDay, sweepAngleDay, true, dayBackgroundPaint)
-
-        // 夜の背景 (藍色)
-        val canvasStartAngleNight = canvasEndAngleDay // 夜は昼の終わりから始まる
-        val sweepAngleNight = 360f - sweepAngleDay // 全体から昼の角度を引く
-        canvas.drawArc(rectF, canvasStartAngleNight, sweepAngleNight, true, nightBackgroundPaint)
-    }
-    */
-
 
     /**
      * 和時計の十二支ラベルと不定時法の目盛りを描画する。
@@ -554,7 +475,9 @@ class JapaneseClockView @JvmOverloads constructor(
         textPaint.textSize = 36f * 0.4f // 0.4 デフォルトのテキストサイズ
         val textRadius = outerRadius * 0.9f // 1.05 デフォルトの描画半径
 
-        textPaint.color = Color.BLACK // システム時刻の文字色を黒に
+//        textPaint.color = Color.BLACK // システム時刻の文字色を黒に
+        // Material Design 3のprimaryカラーを使用（自動的にDark/Lightモードに対応）
+        textPaint.color = ContextCompat.getColor(context, R.color.system_clock_text_color)
 
         val dayDurationMillis = sunset.timeInMillis - sunrise.timeInMillis
         val nextDaySunriseMillis = sunrise.timeInMillis + 24 * 3600 * 1000L
