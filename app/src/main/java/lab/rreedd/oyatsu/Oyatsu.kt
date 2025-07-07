@@ -220,7 +220,7 @@ class Oyatsu : AppWidgetProvider() {
                         TAG,
                         "Received Tap on widget ID: $appWidgetId"
                     )
-                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = false)
+                    proceedWithWidgetUpdate(today, context, appWidgetId, forceSunriseRecalc = true)
                 } else {
                     Log.w(TAG, "Received Tap on widget without valid widget ID, updating all.")
                     appWidgetIds.forEach { id ->
@@ -293,7 +293,7 @@ class Oyatsu : AppWidgetProvider() {
             true,
             forceRecalc
         )
-        val todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(
+        var todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(
             context,
             appWidgetId,
             latitude,
@@ -302,6 +302,13 @@ class Oyatsu : AppWidgetProvider() {
             false,
             forceRecalc
         )
+
+        if (todaySunriseTime != null && todaySunsetTime != null && todaySunsetTime.timeInMillis < todaySunriseTime.timeInMillis) {
+            Log.d(TAG, "Correcting sunset date within AppWidgetProvider.")
+            todaySunsetTime = (todaySunsetTime.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
 
         var sunTime = ""
         val japaneseTimeText: String

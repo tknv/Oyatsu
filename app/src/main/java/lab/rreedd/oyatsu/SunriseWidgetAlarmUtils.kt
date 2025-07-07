@@ -171,6 +171,20 @@ object SunriseWidgetAlarmUtils {
             return
         }
 
+        // 日の入り時刻が日の出時刻より前の場合、日付が翌日にまたがったと判断し、
+        // 日の入りのカレンダーを1日進める。
+        if (todaySunset.timeInMillis < todaySunrise.timeInMillis) {
+            Log.d(TAG, "Sunset time (${formatTimestampToHHMMSS(todaySunset.timeInMillis)}) is before sunrise time (${formatTimestampToHHMMSS(todaySunrise.timeInMillis)}). Adjusting sunset date to the next day.")
+            todaySunset.add(Calendar.DAY_OF_YEAR, 1)
+            Log.d(TAG, "Adjusted sunset time: ${Date(todaySunset.timeInMillis)}")
+
+            // SharedPreferencesにも補正後の値を保存し直すことで、次回以降の読み込みでも正しい値を使う
+            prefs.edit {
+                putLong(PREF_SUNSET_TIME_PREFIX + appWidgetId, todaySunset.timeInMillis)
+                apply()
+            }
+        }
+
         // 現在の時間から次の更新時刻を計算
         val nowMillis = System.currentTimeMillis()
         val nextUpdateMillis =
@@ -353,102 +367,82 @@ object SunriseWidgetAlarmUtils {
         }
     }
 
+    //
+    // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+    // Error correction: The logic for calculating the next update time has been revised.
+    // エラー修正：次回更新時刻の計算ロジックを修正しました。
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
     // 現在時刻に基づいて次の更新時刻を計算する
     fun calculateNextUpdateTime(
         idealNowMillis: Long,
         latitude: Double,
         longitude: Double,
-        sunriseMillis: Long,
-        sunsetMillis: Long
+        sunriseMillis: Long, // 今日の日の出
+        sunsetMillis: Long  // 今日の日の入り
     ): Long {
         val nowMillis = idealNowMillis
-        val calculator =
-            SunriseSunsetCalculator(Location(latitude, longitude), TimeZone.getDefault())
+        val location = Location(latitude, longitude)
+        val timeZone = TimeZone.getDefault()
+        val calculator = SunriseSunsetCalculator(location, timeZone)
 
-        // 今日の日の出・日の入
-        val todaySunrise = sunriseMillis
-        val todaySunset = sunsetMillis
-
-        val todayCalendar = Calendar.getInstance(TimeZone.getDefault())
-        todayCalendar.timeInMillis = nowMillis
-        val nextSunriseMillis: Long
-        val pastSunsetMillis: Long
         Log.d(
             "calcNextUpdateTime_In",
             "idealNowMillis (pseud time): $nowMillis (${Date(nowMillis)})"
         )
-        //--- For debugging
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd")
-        //---
-        return if (nowMillis in todaySunrise until todaySunset) {
-            // Day now
+        Log.d("calcNextUpdateTime_In", "Today's Sunrise: $sunriseMillis (${Date(sunriseMillis)})")
+        Log.d("calcNextUpdateTime_In", "Today's Sunset: $sunsetMillis (${Date(sunsetMillis)})")
+
+
+        return if (nowMillis in sunriseMillis until sunsetMillis) {
+            // --- Case 1: Daytime ---
+            // 現在時刻が今日の日の出と日の入りの間
             Log.d("calculateNextUpdateTime", "Currently daytime.")
-            Log.d("calculateNextUpdateTime", "sunriseMillis: $todaySunrise (${Date(todaySunrise)})")
-            Log.d("calculateNextUpdateTime", "sunsetMillis: $todaySunset (${Date(todaySunset)})")
-            calculateDaytimeNextUpdate(nowMillis, todaySunrise, todaySunset)
+            calculateDaytimeNextUpdate(nowMillis, sunriseMillis, sunsetMillis)
+
         } else {
-            // Night now
+            // --- Case 2: Nighttime ---
             Log.d("calculateNextUpdateTime", "Currently nighttime.")
-            // 現在の日の出日付を取得（時分秒を切り捨てる）
-            val systemCalendar = Calendar.getInstance()
-            systemCalendar.timeInMillis = todaySunrise
-            systemCalendar.set(Calendar.HOUR_OF_DAY, 0)
-            systemCalendar.set(Calendar.MINUTE, 0)
-            systemCalendar.set(Calendar.SECOND, 0)
-            systemCalendar.set(Calendar.MILLISECOND, 0)
+            val nextSunriseMillis: Long
+            val pastSunsetMillis: Long
 
-            // nowMills の日付を取得（時分秒を切り捨てる）
-            val nowCalendar = Calendar.getInstance()
-            nowCalendar.timeInMillis = nowMillis
-            nowCalendar.set(Calendar.HOUR_OF_DAY, 0)
-            nowCalendar.set(Calendar.MINUTE, 0)
-            nowCalendar.set(Calendar.SECOND, 0)
-            nowCalendar.set(Calendar.MILLISECOND, 0)
+            val todayCalendar = Calendar.getInstance(timeZone).apply { timeInMillis = nowMillis }
 
-            if (nowCalendar.after(systemCalendar)) {
-                // Because nowMillis after midnight(0 AM), thus the day is new day, but todaySunrise day keeps system day
-                // Now before sunset, thus the day in next day (i.e. after 0 AM)
-                Log.d("calculateNextUpdateTime", "after 0 AM.")
-                nextSunriseMillis =
-                    calculator.getOfficialSunriseCalendarForDate(todayCalendar).timeInMillis
-                val yesterdayCalendar = Calendar.getInstance(TimeZone.getDefault())
-                // TODO::// A test day is new day but system day is still same day, thus delta 0
-                yesterdayCalendar.add(Calendar.DAY_OF_YEAR, 0)
-                dateFormat.timeZone = yesterdayCalendar.timeZone
-                val yesterdayDateChk = dateFormat.format(yesterdayCalendar.time)
-                Log.d("calculateNextUpdateTime", "yesterdayDateChk: $yesterdayDateChk")
-                pastSunsetMillis =
-                    calculator.getOfficialSunsetCalendarForDate(yesterdayCalendar).timeInMillis
-            } else {
-                // Now after sunrise, thus the day in same day (i.e. before 0 AM)
-                Log.d(
-                    "calculateNextUpdateTime",
-                    "before 0 AM. todaySunrise: $todaySunrise (${Date(todaySunrise)}), nowMillis: $nowMillis (${
-                        Date(nowMillis)
-                    })"
-                )
-                val tomorrowCalendar = Calendar.getInstance(TimeZone.getDefault())
-                tomorrowCalendar.add(Calendar.DAY_OF_YEAR, 1)
-                dateFormat.timeZone = tomorrowCalendar.timeZone
-                val tomorrowDateChk = dateFormat.format(tomorrowCalendar.time)
-                Log.d("calculateNextUpdateTime", "tomorrowDateChk: $tomorrowDateChk")
-                nextSunriseMillis =
-                    calculator.getOfficialSunriseCalendarForDate(tomorrowCalendar).timeInMillis
-                pastSunsetMillis =
-                    calculator.getOfficialSunsetCalendarForDate(todayCalendar).timeInMillis
+            if (nowMillis < sunriseMillis) {
+                // --- Case 2a: Night, before today's sunrise (e.g., 00:00 - 05:30) ---
+                // 現在時刻が深夜0時から今日の日の出までの間
+                Log.d("calculateNextUpdateTime", "Night, before today's sunrise.")
+
+                // 次の日の出は「今日」の日の出
+                nextSunriseMillis = sunriseMillis
+
+                // 過ぎた日の入りは「昨日」の日の入り
+                val yesterdayCalendar = (todayCalendar.clone() as Calendar).apply {
+                    add(Calendar.DAY_OF_YEAR, -1)
+                }
+                pastSunsetMillis = calculator.getOfficialSunsetCalendarForDate(yesterdayCalendar).timeInMillis
+
+            } else { // nowMillis >= sunsetMillis
+                // --- Case 2b: Night, after today's sunset (e.g., 19:00 - 23:59) ---
+                // 現在時刻が今日の日の入りから深夜0時までの間
+                Log.d("calculateNextUpdateTime", "Night, after today's sunset.")
+
+                // 過ぎた日の入りは「今日」の日の入り
+                pastSunsetMillis = sunsetMillis
+
+                // 次の日の出は「明日」の日の出
+                val tomorrowCalendar = (todayCalendar.clone() as Calendar).apply {
+                    add(Calendar.DAY_OF_YEAR, 1)
+                }
+                nextSunriseMillis = calculator.getOfficialSunriseCalendarForDate(tomorrowCalendar).timeInMillis
             }
-            Log.d(
-                "calculateNextUpdateTime",
-                "nextSunriseMillis: $nextSunriseMillis (${Date(nextSunriseMillis)})"
-            )
-            Log.d(
-                "calculateNextUpdateTime",
-                "pastSunsetMillis: $pastSunsetMillis (${Date(pastSunsetMillis)})"
-            )
+
+            Log.d("calculateNextUpdateTime", "Past Sunset for calc: $pastSunsetMillis (${Date(pastSunsetMillis)})")
+            Log.d("calculateNextUpdateTime", "Next Sunrise for calc: $nextSunriseMillis (${Date(nextSunriseMillis)})")
+
             calculateNighttimeNextUpdate(nowMillis, nextSunriseMillis, pastSunsetMillis)
         }
     }
-
 
     // 日中（日の出から日の入りまで）の次の更新時刻を計算
     private fun calculateDaytimeNextUpdate(
@@ -529,11 +523,8 @@ object SunriseWidgetAlarmUtils {
     // 夜間（日の入りから次の日の出まで）の次の更新時刻を計算
     private fun calculateNighttimeNextUpdate(
         nowMillis: Long,
-        // sunriseMillis: Long, // 当日の日の出
-        // sunsetMillis: Long, // 当日の日の入り
         nextSunriseMillis: Long, // 次の日の日の出
         pastSunsetMillis: Long // 過ぎた日の入り
-        // yesterdaySunsetMillis: Long // 前日の日の入り
     ): Long {
         val nightStartMillis = pastSunsetMillis
         val nightEndMillis = nextSunriseMillis

@@ -1,0 +1,6 @@
+# v3.5 (11)
+
+## Fix  
+* Broken clock when location is far from system timezone 
+* Tap Widget update wrongly   
+ 

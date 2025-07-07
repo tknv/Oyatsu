@@ -13,6 +13,7 @@ import android.view.View
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.min
@@ -132,8 +133,21 @@ class JapaneseClockView @JvmOverloads constructor(
     }
 
     fun setSunriseSunsetTimes(sunrise: Calendar?, sunset: Calendar?) {
+        var correctedSunset = sunset
+        // 日の入りが日の出より早い場合、日付がずれていると判断して補正する
+        if (sunrise != null && correctedSunset != null && correctedSunset.timeInMillis < sunrise.timeInMillis) {
+            Log.d(TAG, "Sunset time is before sunrise. Correcting sunset date to the next day.")
+            // 元のCalendarオブジェクトを変更しないようにコピーを作成して補正
+            correctedSunset = (correctedSunset.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+            Log.d(TAG, String.format("Corrected sunset time: %s",
+                Date(correctedSunset.timeInMillis)
+            ))
+        }
+
         this.sunriseTime = sunrise
-        this.sunsetTime = sunset
+        this.sunsetTime = correctedSunset // 補正後の値を設定
         invalidate() // 時刻が設定されたら再描画
         // 日の出・日の入り時刻が変わった場合は、更新間隔も再計算するためRunnableを一度リセット
         stopUpdating()
