@@ -113,5 +113,5 @@ jobs:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: ${{ steps.message_generator.outputs.message }}
-          parse_mode: markdown
+          format: markdown
         if: success() || failure()
