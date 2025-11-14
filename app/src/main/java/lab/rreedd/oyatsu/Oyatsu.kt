@@ -312,6 +312,7 @@ class Oyatsu : AppWidgetProvider() {
 
         var sunTime = ""
         val japaneseTimeText: String
+        var isHitsujiTime = false  // 八っ時、未かどうかの確認。初めの3回は捨て鐘で5回。つまり卯辰巳午未
 
         if (todaySunriseTime != null && todaySunsetTime != null) {
             val resultPair =
@@ -319,6 +320,15 @@ class Oyatsu : AppWidgetProvider() {
             japaneseTimeText = resultPair.first
             sunTime = resultPair.second
             Log.d(TAG, "Widget $appWidgetId: $japaneseTimeText (sunTime: $sunTime)")
+            // 未の時刻かどうかを判定（japaneseTimeTextが「未」で始まるかチェック）
+            isHitsujiTime = japaneseTimeText.startsWith("未")
+            Log.d(TAG, "Widget $appWidgetId: $japaneseTimeText (sunTime: $sunTime, isHitsujiTime: $isHitsujiTime)")
+            if (isHitsujiTime) {
+                views.setInt(R.id.widget_root_layout, "setBackgroundResource", R.drawable.tokyo_29_1)
+                Log.d(TAG, "Setting background for 未 time")
+            } else {
+                views.setInt(R.id.widget_root_layout, "setBackgroundResource", android.R.color.transparent)
+            }
             // ★ウィジェット全体をタップしたら更新をトリガーするPendingIntentを設定
             val selfUpdateIntent = Intent(context, Oyatsu::class.java).apply {
                 action = ACTION_WIDGET_CLICK_UPDATE
@@ -362,6 +372,8 @@ class Oyatsu : AppWidgetProvider() {
             )
             japaneseTimeText = context.getString(R.string.location_not_set_tap_to_set)
             sunTime = context.getString(R.string.fetching_location)
+            // 背景を透明に設定
+            views.setInt(R.id.widget_root_layout, "setBackgroundResource", android.R.color.transparent)
         }
 
         views.setTextViewText(R.id.text_japanese_year_month, "$japaneseYear $japaneseMonthName")
