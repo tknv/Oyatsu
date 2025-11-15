@@ -1,0 +1,9 @@
+# v5.0 (12)
+
+## Add  
+* Oyatsu-doki background of widget 
+
+## Change 
+* When it comes to Oyatsu-doki, the hands of the Japanese clock are Azuki-colored  
+
+ 

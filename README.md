@@ -13,12 +13,14 @@
 
 ## 機能
 
-* 和暦
-* 和風月名
-* グレゴリー日付
-* 和時計時刻(不定時法)
-* 二十四節気
-* 干支
+* 和暦  
+* 和風月名  
+* グレゴリー日付  
+* 和時計時刻(不定時法)  
+* 二十四節気  
+* 干支  
+* おやつになるとウィジットの背景に団子表示  
+* おやつになると和時計の針が小豆色    
 
 和時計時刻は位置情報:経度緯度から計算して表示します.  
 位置情報を設定しない場合(インストールしたまま)は東京駅(`35.6895, 139.6917`)を使います.  
@@ -40,6 +42,10 @@
 ## スクリーンショット
 
 <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/1.png" width="50%">  
+
+- おやつの時間  
+<img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/15.png" width="50%">  
+<img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/14.png" width="50%"> 
 
 - ランチャーでの表示  
  <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/2.png" width="25%">  

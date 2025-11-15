@@ -6,3 +6,4 @@ Display and Japanese clock time (seasonal time) calculated by location
 * 二十四節気 - 24 solar terms
 * 干支 - Chinese zodiac signs
 * 和時計 - Japanese clock (seasonal time)
+* おやつ時通知 - Notice Oyatsu-doki

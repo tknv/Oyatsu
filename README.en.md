@@ -31,10 +31,13 @@ Free, no ads.
 * Japanese clock time (seasonal time)  
 * 24 solar terms  
 * Chinese zodiac signs    
+* When it comes to Oyatsu-doki, Odango are displayed on the background of the widget  
+
 
 ###  GUI  
 * Japanese clock (seasonal time clock)  
 * Latitude, Longitude setting  
+* When it comes to Oyatsu-doki, the hands of the Japanese clock are Azuki-colored  
 
 Japanese clock time is calculated and displayed from position information: longitude and latitude.
 If you do not set the location information (with the installation still), use Tokyo Station (`35.6895, 139.6917`).
@@ -43,6 +46,9 @@ If you do not set the location information (with the installation still), use To
 ## Screenshot
 
 <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/1.png" width="50%">  
+ 
+<img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/15.png" width="50%">  
+<img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/14.png" width="50%"> 
 
 - Display on the launcher  
  <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/2.png" width="25%">  

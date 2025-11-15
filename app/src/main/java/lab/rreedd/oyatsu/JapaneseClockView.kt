@@ -18,6 +18,7 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import androidx.core.graphics.toColorInt
 
 class JapaneseClockView @JvmOverloads constructor(
     context: Context,
@@ -553,6 +554,7 @@ class JapaneseClockView @JvmOverloads constructor(
     /**
      * 和時計の時針を描画する。
      * 不定時法に従って動く針。
+     * 未の時刻のみ特別な色と太さで描画する。
      * @param canvas Canvas
      * @param centerX 中心X座標
      * @param centerY 中心Y座標
@@ -571,14 +573,46 @@ class JapaneseClockView @JvmOverloads constructor(
             return
         }
 
-        // 現在時刻が和時計のどこに位置するかを角度（ラジアン）で計算
-        // getTimeAngleForJapaneseClock は午の刻を0度（頂点）として角度を返す
-        val angleRadians = getTimeAngleForJapaneseClock(currentTime.timeInMillis, sunrise, sunset, dayDurationMillis, nightDurationMillis)
+        // 現在の和時刻を取得
+        val (japaneseTimeDisplay, _) = calculateJapaneseTimeAndSunInfo(currentTime)
 
-        // 針の描画は通常のdrawHandを使用
+        // 未の時刻かどうかを判定
+        val isHitsujiTime = japaneseTimeDisplay.contains("未")
+
+        Log.d(TAG, "DEBUG: japaneseTimeDisplay = '$japaneseTimeDisplay', isHitsujiTime = $isHitsujiTime")
+
+        // 未の時刻なら特別な色と太さのPaintを使用
+        val customPaint = Paint().apply {
+            if (isHitsujiTime) {
+                color = "#97524e".toColorInt()
+                strokeWidth = 16f
+                Log.d(TAG, "DEBUG: Creating HITSUJI paint - color=#97524e, width=10f")
+            } else {
+                color = Color.WHITE
+                strokeWidth = 8f
+                Log.d(TAG, "DEBUG: Creating NORMAL paint - color=WHITE, width=8f")
+            }
+            strokeCap = Paint.Cap.ROUND
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+        }
+
+        // Paintの設定を確認
+        Log.d(TAG, "DEBUG: Paint config BEFORE drawHand - color=${customPaint.color}, strokeWidth=${customPaint.strokeWidth}, style=${customPaint.style}")
+
+        val angleRadians = getTimeAngleForJapaneseClock(currentTime.timeInMillis, sunrise, sunset, dayDurationMillis, nightDurationMillis)
         val angleDegrees = Math.toDegrees(angleRadians.toDouble()).toFloat()
-        Log.d(TAG, "Japanese Hour Hand Angle: ${String.format("%.2f", angleDegrees)} degrees for ${SimpleDateFormat("HH:mm:ss", Locale.US).format(currentTime.time)}")
-        drawHand(canvas, centerX, centerY, length, angleDegrees, handPaint)
+
+        Log.d(TAG, "Japanese Hour Hand: angle=${String.format("%.2f", angleDegrees)}°, time=${SimpleDateFormat("HH:mm:ss", Locale.US).format(currentTime.time)}, display='$japaneseTimeDisplay', isHitsuji=$isHitsujiTime")
+
+        // 直接ここで描画する（drawHandを経由しない）
+        val angleRad = Math.toRadians(angleDegrees.toDouble()).toFloat()
+        val endX = centerX + length * sin(angleRad)
+        val endY = centerY - length * cos(angleRad)
+
+        Log.d(TAG, "DEBUG: Drawing line directly from ($centerX, $centerY) to ($endX, $endY) with strokeWidth=${customPaint.strokeWidth}, color=${customPaint.color}")
+
+        canvas.drawLine(centerX, centerY, endX, endY, customPaint)
     }
 
     /**
@@ -593,8 +627,11 @@ class JapaneseClockView @JvmOverloads constructor(
     private fun drawHand(canvas: Canvas, centerX: Float, centerY: Float, length: Float, angleDegrees: Float, paint: Paint) {
         val angleRadians = Math.toRadians(angleDegrees.toDouble()).toFloat()
         val endX = centerX + length * sin(angleRadians)
-        val endY = centerY - length * cos(angleRadians) // Y軸は上方向が負なので、cosの符号を反転
+        val endY = centerY - length * cos(angleRadians)
 
+        Log.d(TAG, "DEBUG drawHand: Using paint with strokeWidth=${paint.strokeWidth}, color=${paint.color}")
+
+        // 重要: 引数のpaintを使う！（handPaintではない）
         canvas.drawLine(centerX, centerY, endX, endY, paint)
     }
 }
