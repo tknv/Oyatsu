@@ -12,8 +12,8 @@ android {
         applicationId = "lab.rreedd.oyatsu"
         minSdk = 21
         targetSdk = 35
-        versionCode = 11
-        versionName = "3.5"
+        versionCode = 12
+        versionName = "5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
