@@ -58,7 +58,7 @@ jobs:
               TAG_NAME="${GITHUB_REF#refs/tags/}"
               MESSAGE="🏷️ *新しいタグがプッシュされました* 🏷️\n"
               MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="タグ: `${TAG_NAME}`\n"
+              MESSAGE+="タグ: ${TAG_NAME}\n"
               MESSAGE+="プッシュしたユーザー: ${ACTOR}\n"
               MESSAGE+="詳細: [リポジトリ](${REPOSITORY_URL}/releases/tag/${TAG_NAME})"
               ;;
