@@ -1,0 +1,6 @@
+# v6.0 (13)
+
+## Change 
+*  Sunrise, sunset, and 二十四節気 - 24 solar terms are now calculated using the Jean Meeus's astronomical algorithms.
+
+ 
