@@ -5,11 +5,9 @@ on:
     types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled, milestoned, demilestoned, transferred, locked, unlocked]
   issue_comment:
     types: [created]
-
   push:
     tags:
-      - '*' 
-
+      - '*'
   pull_request:
     types: [opened, reopened, closed, assigned, unassigned, labeled, unlabeled, synchronize, edited, review_requested, review_request_removed]
   pull_request_review:
@@ -24,11 +22,10 @@ jobs:
       - name: Generate Telegram Message
         id: message_generator
         run: |
-          MESSAGE=""
-          EVENT_NAME="${{ github.event_name }}"
-          REPOSITORY_NAME="${{ github.repository }}"
-          ACTOR="${{ github.actor }}"
-          REPOSITORY_URL="https://github.com/${{ github.repository }}"
+          EVENT_NAME="${GITHUB_EVENT_NAME}"
+          REPOSITORY_NAME="${GITHUB_REPOSITORY}"
+          ACTOR="${GITHUB_ACTOR}"
+          REPOSITORY_URL="https://github.com/${GITHUB_REPOSITORY}"
 
           case "$EVENT_NAME" in
             issues)
@@ -36,54 +33,32 @@ jobs:
               ISSUE_NUMBER="${{ github.event.issue.number }}"
               ISSUE_URL="${{ github.event.issue.html_url }}"
               ACTION="${{ github.event.action }}"
-              MESSAGE="🚨 *新しいIssueイベント: ${ACTION}* 🚨\n"
-              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="Issue #${ISSUE_NUMBER}: *${ISSUE_TITLE}*\n"
-              MESSAGE+="作成者/変更者: ${ACTOR}\n"
-              MESSAGE+="詳細: [こちら](${ISSUE_URL})"
+              MESSAGE="🚨 *新しいIssueイベント: ${ACTION}* 🚨\nリポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\nIssue #${ISSUE_NUMBER}: *${ISSUE_TITLE}*\n作成者/変更者: ${ACTOR}\n詳細: [こちら](${ISSUE_URL})"
               ;;
             issue_comment)
               ISSUE_TITLE="${{ github.event.issue.title }}"
               ISSUE_NUMBER="${{ github.event.issue.number }}"
               COMMENT_BODY="${{ github.event.comment.body }}"
               COMMENT_URL="${{ github.event.comment.html_url }}"
-              MESSAGE="💬 *Issueコメントが追加されました* 💬\n"
-              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="Issue #${ISSUE_NUMBER}: *${ISSUE_TITLE}*\n"
-              MESSAGE+="コメント作成者: ${ACTOR}\n"
-              MESSAGE+="コメント: \"${COMMENT_BODY}\"\n"
-              MESSAGE+="詳細: [こちら](${COMMENT_URL})"
+              MESSAGE="💬 *Issueコメントが追加されました* 💬\nリポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\nIssue #${ISSUE_NUMBER}: *${ISSUE_TITLE}*\nコメント作成者: ${ACTOR}\nコメント: \"${COMMENT_BODY}\"\n詳細: [こちら](${COMMENT_URL})"
               ;;
             push)
               TAG_NAME="${GITHUB_REF#refs/tags/}"
-              MESSAGE="🏷️ *新しいタグがプッシュされました* 🏷️\n"
-              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="タグ: ${TAG_NAME}\n"
-              MESSAGE+="プッシュしたユーザー: ${ACTOR}\n"
-              MESSAGE+="詳細: [リポジトリ](${REPOSITORY_URL}/releases/tag/${TAG_NAME})"
+              MESSAGE="🏷️ *新しいタグがプッシュされました* 🏷️\nリポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\nタグ: ${TAG_NAME}\nプッシュしたユーザー: ${ACTOR}\n詳細: [リポジトリ](${REPOSITORY_URL}/releases/tag/${TAG_NAME})"
               ;;
             pull_request)
               PR_TITLE="${{ github.event.pull_request.title }}"
               PR_NUMBER="${{ github.event.pull_request.number }}"
               PR_URL="${{ github.event.pull_request.html_url }}"
               ACTION="${{ github.event.action }}"
-              MESSAGE="🚀 *プルリクエストイベント: ${ACTION}* 🚀\n"
-              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="PR #${PR_NUMBER}: *${PR_TITLE}*\n"
-              MESSAGE+="作成者/変更者: ${ACTOR}\n"
-              MESSAGE+="詳細: [こちら](${PR_URL})"
+              MESSAGE="🚀 *プルリクエストイベント: ${ACTION}* 🚀\nリポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\nPR #${PR_NUMBER}: *${PR_TITLE}*\n作成者/変更者: ${ACTOR}\n詳細: [こちら](${PR_URL})"
               ;;
             pull_request_review)
               PR_TITLE="${{ github.event.pull_request.title }}"
               PR_NUMBER="${{ github.event.pull_request.number }}"
               PR_URL="${{ github.event.pull_request.html_url }}"
               REVIEW_STATE="${{ github.event.review.state }}"
-              MESSAGE="👀 *プルリクエストレビューが提出されました* 👀\n"
-              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="PR #${PR_NUMBER}: *${PR_TITLE}*\n"
-              MESSAGE+="レビュー者: ${ACTOR}\n"
-              MESSAGE+="ステータス: *${REVIEW_STATE}*\n"
-              MESSAGE+="詳細: [こちら](${PR_URL})"
+              MESSAGE="👀 *プルリクエストレビューが提出されました* 👀\nリポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\nPR #${PR_NUMBER}: *${PR_TITLE}*\nレビュー者: ${ACTOR}\nステータス: *${REVIEW_STATE}*\n詳細: [こちら](${PR_URL})"
               ;;
             pull_request_review_comment)
               PR_TITLE="${{ github.event.pull_request.title }}"
@@ -91,12 +66,7 @@ jobs:
               PR_URL="${{ github.event.pull_request.html_url }}"
               COMMENT_BODY="${{ github.event.comment.body }}"
               COMMENT_URL="${{ github.event.comment.html_url }}"
-              MESSAGE="💬 *プルリクエストレビューコメントが追加されました* 💬\n"
-              MESSAGE+="リポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\n"
-              MESSAGE+="PR #${PR_NUMBER}: *${PR_TITLE}*\n"
-              MESSAGE+="コメント作成者: ${ACTOR}\n"
-              MESSAGE+="コメント: \"${COMMENT_BODY}\"\n"
-              MESSAGE+="詳細: [こちら](${COMMENT_URL})"
+              MESSAGE="💬 *プルリクエストレビューコメントが追加されました* 💬\nリポジトリ: [${REPOSITORY_NAME}](${REPOSITORY_URL})\nPR #${PR_NUMBER}: *${PR_TITLE}*\nコメント作成者: ${ACTOR}\nコメント: \"${COMMENT_BODY}\"\n詳細: [こちら](${COMMENT_URL})"
               ;;
             *)
               MESSAGE="未定義のGitHubイベント: ${EVENT_NAME}"
@@ -114,4 +84,3 @@ jobs:
           token: ${{ secrets.TELEGRAM_TOKEN }}
           message: ${{ steps.message_generator.outputs.message }}
           format: markdown
-        if: success() || failure()
