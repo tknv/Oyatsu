@@ -110,13 +110,42 @@ class Oyatsu : AppWidgetProvider() {
         val longitude = longitudeString?.toDoubleOrNull() ?: DEFAULT_LONGITUDE
 
         val calendar = Calendar.getInstance()
-        val gregorianDate = SimpleDateFormat("yyyy年MM月dd日", Locale.JAPAN).format(calendar.time)
-        val japaneseMonthName = getJapaneseMonthName(calendar)
-        
+        val japaneseMonthName = Koyomi.japaneseMonthName(calendar)
+        val kanjiDay = Koyomi.kanjiDay(calendar)
+        val dayKanjiCycle = Koyomi.dayKanjiCycle(calendar)
+        val holidayName = Koyomi.holidayName(calendar)
+
         // Meeusアルゴリズムによる高精度二十四節気取得
         val solarTerm = MeeusSunCalc.getSolarTerm(calendar)
-        val sixtyKanjiCycle = getSixtyKanjiCycle(calendar)
-        val japaneseYear = getJapaneseYear(calendar)
+        val zassetsu = Koyomi.zassetsu(calendar)
+        val sixtyKanjiCycle = Koyomi.sixtyKanjiCycleYear(calendar)
+        val japaneseYear = Koyomi.japaneseYear(calendar)
+
+        // 月名 + 日付(漢数字+日干支) + (祝日名があれば付与)
+        val monthDayLine = buildString {
+            append(japaneseMonthName)
+            append(' ')
+            append(kanjiDay)
+            append(dayKanjiCycle)
+            if (holidayName != null) {
+                append(' ')
+                append(holidayName)
+            }
+        }
+
+        // 節気 + [雑節] + 和暦年+干支+歳
+        val termYearLine = buildString {
+            append(solarTerm)
+            if (zassetsu != null) {
+                append(" [")
+                append(zassetsu)
+                append(']')
+            }
+            append(' ')
+            append(japaneseYear)
+            append(sixtyKanjiCycle)
+            append('歳')
+        }
 
         val todaySunriseTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(context, appWidgetId, latitude, longitude, pseudToday, true, forceRecalc)
         var todaySunsetTime = SunriseWidgetAlarmUtils.getSunriseSunsetTime(context, appWidgetId, latitude, longitude, pseudToday, false, forceRecalc)
@@ -128,12 +157,17 @@ class Oyatsu : AppWidgetProvider() {
         var sunTime = ""
         val japaneseTimeText: String
         var isHitsujiTime = false
+        var timeMoonLine: String
 
         if (todaySunriseTime != null && todaySunsetTime != null) {
             val resultPair = calculateJapaneseTime(Calendar.getInstance(), todaySunriseTime, todaySunsetTime)
             japaneseTimeText = resultPair.first
             sunTime = resultPair.second
             isHitsujiTime = japaneseTimeText.startsWith("未")
+
+            // 朔望 (次の朔・上弦・望・下弦) の日本語メッセージ
+            val moonMessage = MoonPhase.describeJa(Calendar.getInstance())
+            timeMoonLine = "$japaneseTimeText $moonMessage"
 
             if (isHitsujiTime) {
                 views.setInt(R.id.widget_root_layout, "setBackgroundResource", R.drawable.tokyo_29_1)
@@ -150,14 +184,18 @@ class Oyatsu : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_root_layout, selfUpdatePendingIntent)
         } else {
             japaneseTimeText = context.getString(R.string.location_not_set_tap_to_set)
+            timeMoonLine = japaneseTimeText
             sunTime = context.getString(R.string.fetching_location)
             views.setInt(R.id.widget_root_layout, "setBackgroundResource", android.R.color.transparent)
         }
 
-        views.setTextViewText(R.id.text_japanese_year_month, "$japaneseYear $japaneseMonthName")
-        views.setTextViewText(R.id.text_gregorian_date, gregorianDate)
-        views.setTextViewText(R.id.text_jikoku_solar_term_sixty_cycle, "$japaneseTimeText $solarTerm $sixtyKanjiCycle")
-        views.setTextViewText(R.id.text_sun_time, sunTime)
+        // 日出・日入の補足情報 (括弧書き)
+        val sunTimeLine = if (sunTime.isNotEmpty()) "($sunTime)" else ""
+
+        views.setTextViewText(R.id.text_jikoku_moon, timeMoonLine)
+        views.setTextViewText(R.id.text_month_day, monthDayLine)
+        views.setTextViewText(R.id.text_term_year, termYearLine)
+        views.setTextViewText(R.id.text_sun_time, sunTimeLine)
 
         try {
             appWidgetManager.updateAppWidget(appWidgetId, views)

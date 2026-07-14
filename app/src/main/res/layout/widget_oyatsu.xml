@@ -10,36 +10,9 @@
     android:layout_marginBottom="0dp"
     android:padding="0dp">
 
-    <!-- Japanese Year and Month -->
+    <!-- 和時計時刻 + 朔望 (例: 巳二つ 今夜は朔) -->
     <TextView
-        android:id="@+id/text_japanese_year_month"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:textColor="@android:color/white"
-        android:textSize="15sp"
-        android:letterSpacing="0.2"
-        android:gravity="center"
-        android:text="令和五年 睦月" />
-
-    <!-- Gregorian Date -->
-    <TextView
-        android:id="@+id/text_gregorian_date"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:textColor="@android:color/white"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:letterSpacing="0"
-        android:gravity="center"
-        android:text="2025年05月01日" />
-
-    <!-- Solar Term and Kanji Cycle -->
-    <TextView
-        android:id="@+id/text_jikoku_solar_term_sixty_cycle"
+        android:id="@+id/text_jikoku_moon"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="0dp"
@@ -48,8 +21,35 @@
         android:textSize="13sp"
         android:letterSpacing="0.2"
         android:gravity="center"
-        android:text="未三つ 立夏 甲子" />
+        android:text="巳二つ 今夜は朔" />
 
+    <!-- 和風月名 + 日付(漢数字+日干支) + 祝日名 (例: 卯月 十七日辛酉 秋季皇霊祭) -->
+    <TextView
+        android:id="@+id/text_month_day"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:letterSpacing="0.2"
+        android:gravity="center"
+        android:text="卯月 十七日辛酉 秋季皇霊祭" />
+
+    <!-- 二十四節気 + [雑節] + 和暦年+干支+歳 (例: 清明 [土用入り] 令和八年丙午歳) -->
+    <TextView
+        android:id="@+id/text_term_year"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:letterSpacing="0.2"
+        android:gravity="center"
+        android:text="清明 [土用入り] 令和八年丙午歳" />
+
+    <!-- 日の出・日の入り (例: (日出04:06-日入17:15)) -->
     <TextView
         android:id="@+id/text_sun_time"
         android:layout_width="match_parent"
@@ -60,6 +60,6 @@
         android:textSize="11sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:text="日出05:06-日入19:31" />
+        android:text="(日出05:06-日入19:31)" />
 
 </LinearLayout>

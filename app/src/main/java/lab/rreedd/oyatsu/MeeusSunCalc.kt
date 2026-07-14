@@ -92,6 +92,27 @@ object MeeusSunCalc {
         return resultCal
     }
 
+    /**
+     * 任意のユリウス日における太陽視黄経を返す (雑節・社日などの計算に再利用するため公開)。
+     */
+    fun apparentSolarLongitudeAt(jd: Double): Double = getApparentSolarLongitude(jd)
+
+    /**
+     * 二分法で、太陽視黄経が targetLon (度) になるユリウス日を求める。
+     * approxJd の前後3日の範囲で探索する (oyatsu-cli の find_solar_term_jd に対応)。
+     */
+    fun findSolarTermJulianDay(targetLon: Double, approxJd: Double): Double {
+        var lo = approxJd - 3.0
+        var hi = approxJd + 3.0
+        for (i in 0 until 64) {
+            val mid = (lo + hi) / 2.0
+            val diff = ((getApparentSolarLongitude(mid) - targetLon + 180.0).mod(360.0)) - 180.0
+            if (diff > 0.0) hi = mid else lo = mid
+            if (hi - lo < 1e-9) break
+        }
+        return (lo + hi) / 2.0
+    }
+
     private fun getApparentSolarLongitude(jd: Double): Double {
         val t = (jd - 2451545.0) / 36525.0
         var L0 = (280.46646 + 36000.76983 * t + 0.0003032 * t * t) % 360.0
