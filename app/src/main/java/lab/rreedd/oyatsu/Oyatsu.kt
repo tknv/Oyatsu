@@ -170,9 +170,11 @@ class Oyatsu : AppWidgetProvider() {
             timeMoonLine = "$japaneseTimeText $moonMessage"
 
             if (isHitsujiTime) {
-                views.setInt(R.id.widget_root_layout, "setBackgroundResource", R.drawable.tokyo_29_1)
+                // 新設したImageViewに対してリソース画像（おやつ背景）を設定
+                views.setImageViewResource(R.id.widget_background_image, R.drawable.tokyo_29_1)
             } else {
-                views.setInt(R.id.widget_root_layout, "setBackgroundResource", android.R.color.transparent)
+                // 未の刻以外は画像をクリアする（透明リソースを指定、またはsetImageResourceに0を渡す）
+                views.setImageViewResource(R.id.widget_background_image, android.R.color.transparent)
             }
 
             val selfUpdateIntent = Intent(context, Oyatsu::class.java).apply {

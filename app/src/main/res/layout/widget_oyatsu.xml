@@ -1,65 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root_layout"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@android:color/transparent"
-    android:layout_marginTop="0dp"
-    android:layout_marginBottom="0dp"
-    android:padding="0dp">
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
 
-    <!-- 和時計時刻 + 朔望 (例: 巳二つ 今夜は朔) -->
-    <TextView
-        android:id="@+id/text_jikoku_moon"
+    <ImageView
+        android:id="@+id/widget_background_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitEnd"
+        android:adjustViewBounds="false"
+        android:layout_gravity="bottom|right" />
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:textColor="@android:color/white"
-        android:textSize="13sp"
-        android:letterSpacing="0.2"
-        android:gravity="center"
-        android:text="巳二つ 今夜は朔" />
+        android:layout_gravity="bottom|center_horizontal"
+        android:orientation="vertical"
+        android:layout_marginBottom="4dp"
+        android:padding="0dp">
 
-    <!-- 和風月名 + 日付(漢数字+日干支) + 祝日名 (例: 卯月 十七日辛酉 秋季皇霊祭) -->
-    <TextView
-        android:id="@+id/text_month_day"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:textColor="@android:color/white"
-        android:textSize="13sp"
-        android:letterSpacing="0.2"
-        android:gravity="center"
-        android:text="卯月 十七日辛酉 秋季皇霊祭" />
+        <TextView
+            android:id="@+id/text_jikoku_moon"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:letterSpacing="0.2"
+            android:gravity="center"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2"
+            android:text="巳二つ 今夜は朔" />
 
-    <!-- 二十四節気 + [雑節] + 和暦年+干支+歳 (例: 清明 [土用入り] 令和八年丙午歳) -->
-    <TextView
-        android:id="@+id/text_term_year"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:textColor="@android:color/white"
-        android:textSize="13sp"
-        android:letterSpacing="0.2"
-        android:gravity="center"
-        android:text="清明 [土用入り] 令和八年丙午歳" />
+        <TextView
+            android:id="@+id/text_month_day"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:letterSpacing="0.2"
+            android:gravity="center"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2"
+            android:text="卯月 十七日辛酉 秋季皇霊祭" />
 
-    <!-- 日の出・日の入り (例: (日出04:06-日入17:15)) -->
-    <TextView
-        android:id="@+id/text_sun_time"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:textColor="@android:color/white"
-        android:textSize="11sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:text="(日出05:06-日入19:31)" />
+        <TextView
+            android:id="@+id/text_term_year"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:letterSpacing="0.2"
+            android:gravity="center"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2"
+            android:text="清明 [土用入り] 令和八年丙午歳" />
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/text_sun_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:textColor="@android:color/white"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2"
+            android:text="(日出05:06-日入19:31)" />
+
+    </LinearLayout>
+
+</FrameLayout>
