@@ -13,11 +13,14 @@
 
 ## 機能
 
-* 和暦  
-* 和風月名  
-* グレゴリー日付  
-* 和時計時刻(不定時法)  
+* 和時計時刻(不定時法)　　
+* 朔望　　
+* 和風月名    
+* 日付    
+* 日干支   
 * 二十四節気  
+* 雑節    
+* 和暦 
 * 干支  
 * おやつになるとウィジットの背景に団子表示  
 * おやつになると和時計の針が小豆色    
@@ -45,6 +48,7 @@
 
 - おやつの時間  
 <img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/15.png" width="50%">  
+<img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/16.png" width="50%">  
 <img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/14.png" width="50%"> 
 
 - ランチャーでの表示  
@@ -129,6 +133,14 @@ AATとは、"GPS-tracking application for sportive activities, with emphasis on 
 ### 不定時法
 
 © [国立天文台](https://eco.mtk.nao.ac.jp/koyomi/wiki/BBFEB9EF2FC4EABBFECBA1A4C8C9D4C4EABBFECBA1.html)   
+
+### 天文計算(日の出・日の入り、二十四節気)  
+
+本プロジェクトの天文計算(日の出・日の入り、二十四節気など)は、以下の文献に記載されたアルゴリズムに基づいています。
+
+Jean Meeus, Astronomical Algorithms, 2nd Edition, Willmann-Bell, Inc., 1998.
+
+実装は同書で解説されているアルゴリズムを参考にした独自実装であり、同書のソースコードそのものは含んでいません。  
 
 ### 和風月名
 

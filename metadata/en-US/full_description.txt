@@ -1,9 +1,12 @@
-Display and Japanese clock time (seasonal time) calculated by location
-* 和暦 - Japanese calendar
-* 和風月名 - Japanese-style month names
-* グレゴリー日付 - Gregorian date
-* 和時計時刻(不定時法) - Japanese clock time (seasonal time)
-* 二十四節気 - 24 solar terms
-* 干支 - Chinese zodiac signs
-* 和時計 - Japanese clock (seasonal time)
+Display and Japanese clock time (seasonal time) calculated by location  
+
+* 和時計時刻(不定時法) - Japanese clock time (seasonal time)  
+* 朔望 - Syzygy  
+* 和風月名 - Traditional Japanese month names (Wafūgetsu-mei)   
+* 日付 - Day
+* 日干支 - Sexagenary cycle (Hinoeto) day 
+* 二十四節気 - 24 solar terms (Nijūshi-sekki) 
+* 雑節 - Miscellaneous seasonal observances (Zassetsu)  
+* 和暦 - Japanese calendar year (Wareki) 
+* 干支 - Sexagenary cycle (Eto) year 
 * おやつ時通知 - Notice Oyatsu-doki

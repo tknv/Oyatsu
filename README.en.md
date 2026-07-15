@@ -25,12 +25,15 @@ Free, no ads.
 ## Function  
 
 ### Widget  
-* Japanese calendar  
-* Japanese-style month names  
-* Gregorian date  
-* Japanese clock time (seasonal time)  
-* 24 solar terms  
-* Chinese zodiac signs    
+* Japanese clock time (seasonal time)   　
+* Syzygy  
+* Traditional Japanese month names (Wafūgetsu-mei)    
+* Day  
+* Sexagenary cycle (Hinoeto) day  
+* 24 solar terms (Nijūshi-sekki)     
+* Miscellaneous seasonal observances (Zassetsu) 
+* Japanese calendar year (Wareki)   
+* Sexagenary cycle (Eto) year  
 * When it comes to Oyatsu-doki, Odango are displayed on the background of the widget  
 
 
@@ -48,6 +51,7 @@ If you do not set the location information (with the installation still), use To
 <img alt="Oyatsu screenshot" src="metadata/en-US/images/phoneScreenshots/1.png" width="50%">  
  
 <img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/15.png" width="50%">  
+<img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/16.png" width="50%">  
 <img alt="Oyatsu-doki screenshot" src="metadata/en-US/images/phoneScreenshots/14.png" width="50%"> 
 
 - Display on the launcher  

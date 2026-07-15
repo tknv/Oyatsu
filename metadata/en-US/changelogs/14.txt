@@ -1,0 +1,9 @@
+# v7.1 (14)
+
+## Add 
+* Sexagenary cycle (Hinoeto) day, Miscellaneous seasonal observances (Zassetsu) and syzygy.  
+
+## Delete
+* Gregorian date  
+
+ 
